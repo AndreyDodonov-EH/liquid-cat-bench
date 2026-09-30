@@ -1,9 +1,0 @@
-{
- "ok": true,
- "effort": "high",
- "seconds": 62.9,
- "finish": "success",
- "prompt_tokens": 10167,
- "out_tokens": 2847,
- "html_bytes": 6311
-}

@@ -13,8 +13,7 @@ Can you make me an animation of a cartoonish cat being "liquid"? I.e. going into
 
 - One attempt per model, reasoning effort high, no output cap.
 - Via CLIProxyAPI (`/v1/chat/completions`, no tools); Grok, Muse Spark, Kimi, GLM via Cursor `agent --mode ask`.
-- Claude requests carry the proxy's Claude Code system prompt; Cursor adds its own agent prompt (Cursor prices count output only).
-- Price = list price × tokens, reasoning as output; rates in `prices.json` (2026-09-30).
+- Claude requests carry the proxy's Claude Code system prompt; Cursor adds its own agent prompt.
 - Pages are unmodified model output.
 
 ```

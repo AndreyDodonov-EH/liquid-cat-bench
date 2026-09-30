@@ -91,7 +91,8 @@ const usd = c => c == null ? '' : c < 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(
 
 function label(r) {
   const bits = [];
-  if (r.out_tokens != null) bits.push(`${kTok(r.out_tokens)} tok`, `${Math.round(r.seconds)}s`);
+  if (r.out_tokens != null) bits.push(`${kTok(r.out_tokens)} tok`);
+  if (r.seconds != null) bits.push(`${Math.round(r.seconds)}s`);
   if (r.cost != null) bits.push(usd(r.cost));
   return (r.ok ? r.model : `${r.model} (failed)`) + (bits.length ? ' — ' + bits.join(' · ') : '');
 }
@@ -187,7 +188,10 @@ const COLS = [
   ['API price', r => r.cost, r => usd(r.cost)],
   ['HTML', r => r.html_bytes, r => r.html_bytes ? `${(r.html_bytes / 1024).toFixed(1)} KB` : ''],
 ];
-let sortCol = 6, sortDir = 1;
+// Columns with no data (e.g. usage left out of a published build) are dropped.
+const shown = COLS.filter(c => RESULTS.some(r => c[1](r) != null));
+COLS.splice(0, COLS.length, ...shown);
+let sortCol = COLS.findIndex(c => c[0] === 'Time'), sortDir = 1;
 const tableEl = document.getElementById('table');
 const tableBox = document.getElementById('tableBox');
 
@@ -201,9 +205,10 @@ function renderTable() {
     `<th data-c="${i}" class="${c[3] || ''}${i === sortCol ? ' sorted' : ''}">${c[0]}${i === sortCol ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
     <tbody>${rows.map(i => `<tr data-i="${i}">${COLS.map(c =>
       `<td class="${c[3] || ''}">${c[2](RESULTS[i])}</td>`).join('')}</tr>`).join('')}</tbody></table>
-    <p class="note">Reasoning effort high, no output cap. API price = list price × tokens (reasoning billed as output);
-    Cursor-routed models count output only, since their input is mostly Cursor's agent prompt.
-    Tok/s includes queueing and thinking time. Click a row to open it.</p>`;
+    <p class="note">Reasoning effort high, no output cap.${RESULTS.some(r => r.cost != null) ?
+    ` API price = list price × tokens (reasoning billed as output); Cursor-routed models count output only,
+    since their input is mostly Cursor's agent prompt. Tok/s includes queueing and thinking time.` : ''}
+    Click a row to open it.</p>`;
   tableEl.querySelectorAll('th').forEach(th => th.onclick = () => {
     const c = +th.dataset.c;
     sortDir = c === sortCol ? -sortDir : 1; sortCol = c; renderTable();

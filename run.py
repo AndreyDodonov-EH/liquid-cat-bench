@@ -23,6 +23,10 @@ MAX_TOKENS = {"claude-haiku-4-5-20251001": 64000}
 CLAUDE_MAX_TOKENS = 128000
 REASONING_EFFORT = "high"
 TIMEOUT_S = 3600
+# Token counts and prices stay in stats/ but are left out of the published viewer
+# until the subscription-route usage numbers are verified.
+PUBLISH_USAGE = False
+USAGE_KEYS = {"prompt_tokens", "out_tokens", "total_tokens", "reasoning_tokens", "cost", "price"}
 
 MODELS = [
     "claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5",
@@ -139,6 +143,8 @@ def build_viewer():
     order = [m for m in MODELS if m in results] + sorted(set(results) - set(MODELS))
     data = [{"model": m, **results[m], "route": "cursor" if m in CURSOR_MODELS else "proxy",
              "cost": api_cost(m, results[m], prices), "price": prices.get(m)} for m in order]
+    if not PUBLISH_USAGE:
+        data = [{k: v for k, v in r.items() if k not in USAGE_KEYS} for r in data]
     (HERE / "index.html").write_text(tpl.replace("/*RESULTS*/[]", json.dumps(data, indent=1)))
 
 

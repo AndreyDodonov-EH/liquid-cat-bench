@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cats Are Liquid</title>
+
+<style>
+  :root {
+    color-scheme: light;
+    font-family: ui-rounded, "Trebuchet MS", system-ui, sans-serif;
+    color: #43384e;
+    background: #f4eff9;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    min-height: 100svh;
+    margin: 0;
+    padding: 24px;
+    display: grid;
+    place-items: center;
+    background:
+      radial-gradient(circle at 20% 15%, #fff7df, transparent 45%),
+      radial-gradient(circle at 85% 90%, #e4dcff, transparent 50%),
+      #f5eff9;
+  }
+
+  main {
+    width: min(100%, 1040px);
+    overflow: hidden;
+    border: 1px solid #ffffff;
+    border-radius: 28px;
+    background: #fffcf8;
+    box-shadow: 0 24px 80px #56406c16;
+  }
+
+  header {
+    padding: 30px 34px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(24px, 4vw, 36px);
+    letter-spacing: -1.2px;
+  }
+
+  .subtitle {
+    margin: 7px 0 0;
+    color: #94849e;
+    font-size: 14px;
+  }
+
+  .badge {
+    flex-shrink: 0;
+    padding: 9px 13px;
+    border-radius: 999px;
+    background: #f1eaf9;
+    color: #8a6aa7;
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: hidden;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 20px 30px;
+    border-top: 1px solid #eee6f0;
+    background: #fffafc;
+  }
+
+  button {
+    border: 0;
+    border-radius: 12px;
+    padding: 11px 17px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #fff;
+    background: #8664aa;
+    transition: background .2s, transform .2s;
+  }
+
+  button:hover { background: #735294; }
+  button:active { transform: translateY(1px); }
+
+  button.secondary {
+    color: #7b648e;
+    background: #eee6f4;
+  }
+
+  button:focus-visible,
+  input:focus-visible {
+    outline: 3px solid #d2b2f0;
+    outline-offset: 4px;
+  }
+
+  .speed {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    color: #88758e;
+    font-size: 13px;
+  }
+
+  input { width: 105px; accent-color: #8664aa; }
+  output { min-width: 34px; }
+
+  @media (max-width: 540px) {
+    body { padding: 12px; }
+    header { padding: 24px 22px 0; }
+    .badge { display: none; }
+    .controls { padding: 16px; }
+    .speed { margin-left: 0; }
+  }
+</style>
+</head>
+
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Cats are liquid.</h1>
+      <p class="subtitle">An extremely scientific demonstration.</p>
+    </div>
+    <span class="badge">100% CAT · 0% BONES*</span>
+  </header>
+
+  <svg id="scene" viewBox="0 0 1000 410"
+       role="img" aria-labelledby="svgTitle svgDescription">
+    <title id="svgTitle">A liquid cartoon cat</title>
+    <desc id="svgDescription">
+      An orange cat stretches into a narrow transparent tube,
+      flows through it, and returns to its round shape.
+    </desc>
+
+    <defs>
+      <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffc477"/>
+        <stop offset="1" stop-color="#f4a14f"/>
+      </linearGradient>
+
+      <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#bdece9" stop-opacity=".48"/>
+        <stop offset=".35" stop-color="#e8ffff" stop-opacity=".07"/>
+        <stop offset=".7" stop-color="#caf7f1" stop-opacity=".04"/>
+        <stop offset="1" stop-color="#8ecfcf" stop-opacity=".34"/>
+      </linearGradient>
+
+      <linearGradient id="floor" x1="0" y1="0" x2="1" y2="0">
+        <stop stop-color="#f4edf9" stop-opacity="0"/>
+        <stop offset=".5" stop-color="#e8dcef"/>
+        <stop offset="1" stop-color="#f4edf9" stop-opacity="0"/>
+      </linearGradient>
+
+      <clipPath id="catClip">
+        <path id="clipShape"/>
+      </clipPath>
+    </defs>
+
+    <!-- Background -->
+    <ellipse cx="500" cy="312" rx="442" ry="48" fill="#f8f1f8"/>
+    <path d="M65 307H935" stroke="url(#floor)" stroke-width="2"/>
+
+    <g fill="#d9c9e5">
+      <circle cx="105" cy="105" r="3"/>
+      <circle cx="884" cy="135" r="4"/>
+      <path d="M804 71v14m-7-7h14" stroke="#d9c9e5"
+            stroke-width="2" stroke-linecap="round"/>
+      <path d="M253 90v10m-5-5h10" stroke="#e2d3eb"
+            stroke-width="2" stroke-linecap="round"/>
+    </g>
+
+    <!-- Tube supports -->
+    <g fill="#ded3ec" stroke="#b9a6cb" stroke-width="2">
+      <path d="M403 247L397 299Q417 308 437 299L431 247Z"/>
+      <path d="M569 247L563 299Q583 308 603 299L597 247Z"/>
+    </g>
+
+    <g fill="#f2eaf8">
+      <rect x="404" y="257" width="25" height="7" rx="3"/>
+      <rect x="570" y="257" width="25" height="7" rx="3"/>
+    </g>
+
+    <!-- Back of the transparent tube -->
+    <rect x="350" y="201" width="300" height="48" rx="3"
+          fill="#e5f5f1" fill-opacity=".6"/>
+    <ellipse cx="650" cy="225" rx="10" ry="25"
+             fill="#d8eee9" stroke="#96bdbb" stroke-width="2"/>
+    <ellipse cx="350" cy="225" rx="10" ry="25"
+             fill="#d8eee9" stroke="#96bdbb" stroke-width="2"/>
+
+    <!-- Cat shadow -->
+    <ellipse id="catShadow" cy="303" rx="82" ry="10" fill="#b9a0be"
+             opacity=".18"/>
+
+    <!-- Entire cat fades only during the loop reset -->
+    <g id="cat">
+      <path id="tailOutline" fill="none" stroke="#764b42"
+            stroke-width="17" stroke-linecap="round"/>
+      <path id="tail" fill="none" stroke="#f7ac58"
+            stroke-width="12" stroke-linecap="round"/>
+
+      <path id="ears" fill="#ffbf70" stroke="#764b42"
+            stroke-width="2.8" stroke-linejoin="round"/>
+
+      <path id="body" fill="url(#fur)" stroke="#764b42"
+            stroke-width="2.8" stroke-linejoin="round"/>
+
+      <g clip-path="url(#catClip)">
+        <path id="belly" fill="#ffe1a5" opacity=".85"/>
+        <path id="stripes" fill="none" stroke="#d7833e"
+              stroke-width="9" stroke-linecap="round" opacity=".68"/>
+      </g>
+
+      <path id="innerEars" fill="none" stroke="#ed937e"
+            stroke-width="3.5" stroke-linecap="round"/>
+
+      <g id="face">
+        <g fill="#754c43">
+          <ellipse id="eyeLeft" cx="-12" cy="-4" rx="3.1" ry="4.1"/>
+          <ellipse id="eyeRight" cx="10" cy="-4" rx="3.1" ry="4.1"/>
+        </g>
+
+        <g fill="#fff" opacity=".9">
+          <circle cx="-11.2" cy="-5.4" r="1"/>
+          <circle cx="10.8" cy="-5.4" r="1"/>
+        </g>
+
+        <ellipse cx="-19" cy="6" rx="6" ry="3.5"
+                 fill="#f18d79" opacity=".55"/>
+        <ellipse cx="18" cy="6" rx="6" ry="3.5"
+                 fill="#f18d79" opacity=".55"/>
+
+        <path d="M-4 4Q0 1 4 4L0 8Z" fill="#b5716c"/>
+        <path d="M0 8v3m0 0q-4 5-8 0m8 0q4 5 8 0"
+              fill="none" stroke="#754c43" stroke-width="1.8"
+              stroke-linecap="round"/>
+
+        <path d="M-21 2l-13-4m13 9l-14 1m55-6l13-4m-13 9l14 1"
+              fill="none" stroke="#916147" stroke-width="1.5"
+              stroke-linecap="round"/>
+      </g>
+    </g>
+
+    <!-- Front of the glass, drawn over the cat -->
+    <rect x="350" y="201" width="300" height="48"
+          fill="url(#glass)"/>
+
+    <path d="M350 201H650M350 249H650"
+          stroke="#96bdbb" stroke-width="2.5"/>
+
+    <path d="M367 208H632"
+          stroke="#fff" stroke-width="3" opacity=".8"
+          stroke-linecap="round"/>
+
+    <path d="M369 241H629"
+          stroke="#b0deda" stroke-width="1.5" opacity=".7"/>
+
+    <g fill="none" stroke="#91b8b7" stroke-width="2.5">
+      <ellipse cx="350" cy="225" rx="10" ry="25"/>
+      <ellipse cx="650" cy="225" rx="10" ry="25"/>
+    </g>
+
+    <g fill="none" stroke="#fff" stroke-width="2" opacity=".75">
+      <path d="M348 206Q338 225 348 243"/>
+      <path d="M648 206Q638 225 648 243"/>
+    </g>
+
+    <!-- Little direction marks on the glass -->
+    <g fill="none" stroke="#79aaa8" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round" opacity=".5">
+      <path d="M478 220l6 5-6 5"/>
+      <path d="M495 220l6 5-6 5"/>
+      <path d="M512 220l6 5-6 5"/>
+    </g>
+
+    <text x="500" y="342" text-anchor="middle"
+          fill="#a18baa" font-size="12" letter-spacing="2">
+      NARROW TUBE
+    </text>
+
+    <text id="status" x="500" y="385" text-anchor="middle"
+          fill="#80648e" font-size="19" font-weight="bold">
+      A perfectly ordinary cat.
+    </text>
+
+    <text x="956" y="397" text-anchor="end"
+          fill="#bcadbf" font-size="9">
+      *emotionally, at least
+    </text>
+  </svg>
+
+  <div class="controls">
+    <button id="pause" type="button">Pause</button>
+    <button id="replay" type="button" class="secondary">↻ Replay</button>
+
+    <label class="speed">
+      Speed
+      <input id="speed" type="range" min=".5" max="2"
+             step=".25" value="1">
+      <output id="speedValue">1×</output>
+    </label>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const elements = Object.fromEntries([
+    "cat", "body", "clipShape", "tail", "tailOutline",
+    "ears", "innerEars", "belly", "stripes", "face",
+    "eyeLeft", "eyeRight", "catShadow", "status"
+  ].map(id => [id, $(id)]));
+
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smooth = x => {
+    x = clamp(x);
+    return x * x * (3 - 2 * x);
+  };
+
+  const fmt = n => n.toFixed(2);
+
+  /*
+    Material-space deformation:
+
+    Inside the tube, the cat is compressed vertically.
+    The inverse coordinate map stretches it horizontally by
+    the reciprocal amount, approximately conserving its area.
+
+    This makes one continuous silhouette instead of swapping
+    between separate "cat" and "liquid" drawings.
+  */
+  function compression(x) {
+    const enter = smooth((x - 309) / 41);
+    const leave = smooth((x - 650) / 41);
+    return 1 - .74 * enter * (1 - leave);
+  }
+
+  const STEP = .5;
+  const MIN_X = -200;
+  const MAX_X = 1200;
+  const material = [0];
+
+  for (let x = MIN_X + STEP; x <= MAX_X; x += STEP) {
+    material.push(
+      material[material.length - 1] +
+      compression(x - STEP / 2) * STEP
+    );
+  }
+
+  function toMaterial(x) {
+    const i = clamp((x - MIN_X) / STEP, 0, material.length - 1);
+    const lo = Math.floor(i);
+    const hi = Math.min(lo + 1, material.length - 1);
+    return lerp(material[lo], material[hi], i - lo);
+  }
+
+  function toWorld(q) {
+    q = clamp(q, material[0], material[material.length - 1]);
+
+    let lo = 0;
+    let hi = material.length - 1;
+
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (material[mid] < q) lo = mid;
+      else hi = mid;
+    }
+
+    const fraction = (q - material[lo]) /
+      (material[hi] - material[lo]);
+
+    return MIN_X + (lo + fraction) * STEP;
+  }
+
+  const HALF_LENGTH = 82;
+  const RADIUS = 59;
+  const CENTER_Y = 225;
+
+  const start = toMaterial(163);
+  const finish = toMaterial(834);
+
+  function draw(seconds) {
+    const cycle = 9.6;
+    const t = seconds % cycle;
+
+    // A pause at each end makes the transformation readable.
+    const travel = smooth((t - 1.0) / 6.5);
+    const center = lerp(start, finish, travel);
+
+    const fadeIn = smooth(t / .35);
+    const fadeOut = 1 - smooth((t - 8.95) / .5);
+    elements.cat.style.opacity = fadeIn * fadeOut;
+
+    const settlingTime = Math.max(0, t - 7.5);
+    const settle = t > 7.5
+      ? Math.sin(settlingTime * 13) * Math.exp(-settlingTime * 4) * .09
+      : 0;
+
+    function section(u) {
+      const x = toWorld(center + u * HALF_LENGTH);
+      const c = compression(x);
+
+      // Tiny motion in the liquid; still comfortably within the tube.
+      const wave = Math.sin(u * 7 - seconds * 5) *
+                   1.6 * (1 - c);
+
+      const idleBreath = 1 + .018 * Math.sin(seconds * 3);
+      const radius = RADIUS * Math.sqrt(Math.max(0, 1 - u * u)) *
+                     c * (idleBreath + settle * c);
+
+      return { x, c, y: CENTER_Y + wave, radius };
+    }
+
+    const upper = [];
+    const lower = [];
+    const samples = 150;
+
+    for (let i = 0; i <= samples; i++) {
+      const u = -1 + 2 * i / samples;
+      const s = section(u);
+      upper.push(`${fmt(s.x)},${fmt(s.y - s.radius)}`);
+      lower.push(`${fmt(s.x)},${fmt(s.y + s.radius)}`);
+    }
+
+    const silhouette =
+      `M${upper.join(" L")} L${lower.reverse().join(" L")} Z`;
+
+    elements.body.setAttribute("d", silhouette);
+    elements.clipShape.setAttribute("d", silhouette);
+
+    // Soft belly patch follows the same material-space mapping.
+    const bellyTop = [];
+    const bellyBottom = [];
+
+    for (let i = 0; i <= 70; i++) {
+      const u = -.78 + 1.58 * i / 70;
+      const s = section(u);
+      bellyTop.push(`${fmt(s.x)},${fmt(s.y + s.radius * .42)}`);
+      bellyBottom.push(`${fmt(s.x)},${fmt(s.y + s.radius + 8)}`);
+    }
+
+    elements.belly.setAttribute("d",
+      `M${bellyTop.join(" L")} L${bellyBottom.reverse().join(" L")} Z`
+    );
+
+    // Tabby stripes stretch along with the body.
+    let stripePath = "";
+
+    for (const u of [-.49, -.19, .10]) {
+      const a = section(u);
+      const b = section(u + .075);
+      stripePath +=
+        `M${fmt(a.x)} ${fmt(a.y - a.radius - 3)}` +
+        `Q${fmt(b.x + 3)} ${fmt(a.y - a.radius * .6)} ` +
+        `${fmt(b.x)} ${fmt(b.y - b.radius * .37)} `;
+    }
+
+    elements.stripes.setAttribute("d", stripePath);
+
+    // Tail flattens into the stream as it reaches the inlet.
+    const rear = section(-.88);
+    const tc = rear.c;
+    const wag = Math.sin(seconds * 4.2) * 7 * tc;
+
+    const tailPath =
+      `M${fmt(rear.x + 4)} ${fmt(CENTER_Y + 8 * tc)} ` +
+      `C${fmt(rear.x - 37)} ${fmt(CENTER_Y + 2 * tc)}, ` +
+      `${fmt(rear.x - 49)} ${fmt(CENTER_Y - 43 * tc + wag)}, ` +
+      `${fmt(rear.x - 26)} ${fmt(CENTER_Y - 49 * tc + wag)}`;
+
+    elements.tail.setAttribute("d", tailPath);
+    elements.tailOutline.setAttribute("d", tailPath);
+    elements.tail.setAttribute("stroke-width", 12 * tc);
+    elements.tailOutline.setAttribute("stroke-width", 12 * tc + 4);
+
+    // Face rides near the leading end of the same body.
+    const head = section(.57);
+    const faceScaleX = .64 + .36 * head.c;
+
+    elements.face.setAttribute("transform",
+      `translate(${fmt(head.x)},${fmt(head.y - 4 * head.c)}) ` +
+      `scale(${fmt(faceScaleX)},${fmt(head.c)})`
+    );
+
+    // Brief, occasional blinking.
+    const blinkPhase = seconds % 3.7;
+    const blink = blinkPhase > 3.46
+      ? 1 - Math.sin((blinkPhase - 3.46) / .24 * Math.PI) * .93
+      : 1;
+
+    elements.eyeLeft.setAttribute("ry", 4.1 * blink);
+    elements.eyeRight.setAttribute("ry", 4.1 * blink);
+
+    // Ears emerge from the upper contour; they flatten in the pipe.
+    let ears = "";
+    let innerEars = "";
+
+    for (const offset of [-13, 13]) {
+      const x = head.x + offset * faceScaleX;
+      const u = clamp((toMaterial(x) - center) / HALF_LENGTH, -.96, .96);
+      const s = section(u);
+      const earWidth = 10 * faceScaleX;
+      const baseY = s.y - s.radius + 5;
+      const tipY = baseY - 23 * s.c;
+
+      ears +=
+        `M${fmt(x - earWidth)} ${fmt(baseY + 5)} ` +
+        `L${fmt(x - earWidth * .35)} ${fmt(tipY)} ` +
+        `Q${fmt(x)} ${fmt(tipY - 3 * s.c)} ` +
+        `${fmt(x + earWidth)} ${fmt(baseY + 6)} Z `;
+
+      innerEars +=
+        `M${fmt(x - earWidth * .25)} ${fmt(tipY + 8 * s.c)} ` +
+        `L${fmt(x + earWidth * .27)} ${fmt(baseY - 2 * s.c)} `;
+    }
+
+    elements.ears.setAttribute("d", ears);
+    elements.innerEars.setAttribute("d", innerEars);
+
+    const rearX = section(-1).x;
+    const frontX = section(1).x;
+    const middleX = toWorld(center);
+    const middleCompression = compression(middleX);
+
+    elements.catShadow.setAttribute("cx", (rearX + frontX) / 2);
+    elements.catShadow.setAttribute("rx", (frontX - rearX) * .48);
+    elements.catShadow.setAttribute("opacity",
+      (.07 + .10 * middleCompression) * fadeIn * fadeOut
+    );
+
+    let message;
+
+    if (travel < .04) message = "A perfectly ordinary cat.";
+    else if (frontX < 350) message = "Will I fit? Obviously.";
+    else if (frontX < 660) message = "Switching to liquid mode…";
+    else if (rearX < 650) message = "Please wait. Cat is pouring.";
+    else message = "Back to cat. Nothing to see here.";
+
+    if (elements.status.textContent !== message) {
+      elements.status.textContent = message;
+    }
+  }
+
+  let paused = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let elapsed = 0;
+  let speed = 1;
+  let previous = null;
+
+  const pauseButton = $("pause");
+
+  function updatePauseButton() {
+    pauseButton.textContent = paused ? "Play" : "Pause";
+    pauseButton.setAttribute("aria-label",
+      paused ? "Play animation" : "Pause animation");
+  }
+
+  pauseButton.addEventListener("click", () => {
+    paused = !paused;
+    updatePauseButton();
+  });
+
+  $("replay").addEventListener("click", () => {
+    elapsed = 0;
+    paused = false;
+    updatePauseButton();
+    draw(elapsed);
+  });
+
+  $("speed").addEventListener("input", event => {
+    speed = Number(event.target.value);
+    $("speedValue").textContent = `${speed}×`;
+  });
+
+  // Avoid jumping forward when returning to the browser tab.
+  document.addEventListener("visibilitychange", () => {
+    previous = null;
+  });
+
+  function frame(now) {
+    if (previous !== null && !paused) {
+      elapsed += Math.min((now - previous) / 1000, .05) * speed;
+    }
+
+    previous = now;
+    draw(elapsed);
+    requestAnimationFrame(frame);
+  }
+
+  updatePauseButton();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

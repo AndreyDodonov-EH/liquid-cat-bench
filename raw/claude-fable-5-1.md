@@ -1,0 +1,299 @@
+Here's a self-contained HTML/SVG/JS animation. Save it as `liquid-cat.html` and open it in a browser.
+
+**How it works:** the cat is built from ~13 blobs (head, body segments, paws, tail links) rendered through an SVG "goo" filter so they merge into one smooth shape. Each blob has a "distance behind the head" value; as the head moves along a hidden path (approach → S‑shaped tube → exit), each blob gets pulled onto the path in turn, squashed to the tube's diameter (area‑preserving stretch), and then snaps back into its sitting pose on the far side. The face rides on the head blob and squishes with it. The cat then flips around and slurps back the other way, so it loops forever.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquid Cat</title>
+<style>
+  html,body{margin:0;min-height:100vh;background:#1b2030;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+  .wrap{width:min(96vw,1100px)}
+  svg{width:100%;height:auto;display:block;border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  .hint{color:#8d97b4;text-align:center;font-size:14px;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<svg id="scene" viewBox="0 0 960 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bfe0ff"/><stop offset="1" stop-color="#f3f8ff"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e9dcbd"/><stop offset="1" stop-color="#d6c39a"/>
+    </linearGradient>
+    <!-- "goo" filter: blur + alpha threshold makes separate blobs merge like liquid -->
+    <filter id="goo" filterUnits="userSpaceOnUse" x="0" y="0" width="960" height="420" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -10" result="goo"/>
+      <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+    </filter>
+  </defs>
+
+  <!-- background -->
+  <rect width="960" height="420" fill="url(#sky)"/>
+  <circle cx="860" cy="70" r="34" fill="#ffd76a"/>
+  <rect y="340" width="960" height="80" fill="url(#ground)"/>
+  <line x1="0" y1="340" x2="960" y2="340" stroke="#b8a37c" stroke-width="3"/>
+
+  <!-- tube supports -->
+  <g fill="#7c8497">
+    <rect x="295" y="270" width="10" height="72" rx="3"/>
+    <rect x="455" y="180" width="10" height="162" rx="3"/>
+    <rect x="735" y="270" width="10" height="72" rx="3"/>
+  </g>
+
+  <!-- tube (back) -->
+  <path id="tube" d="M300 255 C370 255 380 165 460 165 C540 165 560 315 640 315 C690 315 700 255 740 255"
+        fill="none" stroke="#3b3b4f" stroke-width="44" stroke-linecap="butt"/>
+  <path d="M300 255 C370 255 380 165 460 165 C540 165 560 315 640 315 C690 315 700 255 740 255"
+        fill="none" stroke="#dbf0ff" stroke-width="36" stroke-linecap="butt"/>
+  <ellipse cx="300" cy="255" rx="5" ry="22" fill="#dbf0ff" stroke="#3b3b4f" stroke-width="3"/>
+  <ellipse cx="740" cy="255" rx="5" ry="22" fill="#dbf0ff" stroke="#3b3b4f" stroke-width="3"/>
+
+  <!-- cat -->
+  <ellipse id="shadow" cx="130" cy="346" rx="48" ry="6" fill="#000" opacity=".15"/>
+  <g id="gooOut"  filter="url(#goo)" fill="#3b3b4f"></g>
+  <g id="gooBody" filter="url(#goo)" fill="#f7a640"></g>
+  <g id="details">
+    <g id="stripes" stroke="#d8842e" stroke-width="4" stroke-linecap="round" fill="none">
+      <path d="M-12 -24 Q0 -30 12 -24"/>
+      <path d="M-17 -13 Q0 -19 17 -13"/>
+      <path d="M-19 -2 Q0 -8 19 -2"/>
+    </g>
+    <g id="face">
+      <polygon points="-21,-11 -18,-29 -7,-21" fill="#ffb6c4"/>
+      <polygon points="21,-11 18,-29 7,-21" fill="#ffb6c4"/>
+      <circle cx="-17" cy="8" r="4.5" fill="#ff9aa8" opacity=".55"/>
+      <circle cx="17" cy="8" r="4.5" fill="#ff9aa8" opacity=".55"/>
+      <g id="eyes">
+        <ellipse cx="-10" cy="-4" rx="6" ry="7" fill="#fff" stroke="#3b3b4f" stroke-width="1.5"/>
+        <ellipse cx="10" cy="-4" rx="6" ry="7" fill="#fff" stroke="#3b3b4f" stroke-width="1.5"/>
+        <circle class="pupil" cx="-9" cy="-3" r="3.5" fill="#2b2b3a"/>
+        <circle class="pupil" cx="11" cy="-3" r="3.5" fill="#2b2b3a"/>
+        <circle cx="-7.5" cy="-5" r="1.3" fill="#fff"/>
+        <circle cx="12.5" cy="-5" r="1.3" fill="#fff"/>
+      </g>
+      <path d="M-3 5 L3 5 L0 8.5 Z" fill="#e0788f"/>
+      <path id="mouthW" d="M-6 9.5 Q-3 12.5 0 9 Q3 12.5 6 9.5" fill="none" stroke="#3b3b4f" stroke-width="1.6" stroke-linecap="round"/>
+      <ellipse id="mouthO" cx="0" cy="11" rx="3" ry="3.5" fill="#3b3b4f" opacity="0"/>
+      <path d="M-17 4 L-36 1 M-17 8 L-36 11 M17 4 L36 1 M17 8 L36 11" stroke="#3b3b4f" stroke-width="1.4" stroke-linecap="round" opacity=".8"/>
+    </g>
+  </g>
+
+  <!-- tube (front glass) -->
+  <path d="M300 255 C370 255 380 165 460 165 C540 165 560 315 640 315 C690 315 700 255 740 255"
+        fill="none" stroke="#fff" stroke-width="36" opacity=".18"/>
+  <path d="M300 255 C370 255 380 165 460 165 C540 165 560 315 640 315 C690 315 700 255 740 255"
+        transform="translate(0 -9)" fill="none" stroke="#fff" stroke-width="4" opacity=".55" stroke-linecap="round"/>
+
+  <text x="948" y="405" text-anchor="end" font-size="14" fill="#8a7a5a" font-style="italic">cats are liquid — q.e.d.</text>
+
+  <!-- hidden motion paths -->
+  <g id="hidden" visibility="hidden" fill="none" stroke="none"></g>
+</svg>
+<div class="hint">A cartoon cat flowing through a narrow tube and reforming on the other side (loops forever).</div>
+</div>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs = {}, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const lerp = (a, b, s) => a + (b - a) * s;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const smooth = s => { s = clamp(s, 0, 1); return s * s * (3 - 2 * s); };
+  const smoothstep = (a, b, v) => smooth((v - a) / (b - a));
+  const easeInOut = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+
+  // ---------- configuration ----------
+  const TUBE_R = 18;     // inner tube radius
+  const OUT = 3;         // outline thickness
+  const BLEND = 80;      // path length over which parts blend from/to sitting pose
+  const ORIGIN = { L: { x: 130, y: 340 }, R: { x: 830, y: 340 } };
+
+  // Cat parts: r = radius, d = distance behind the head along the flow,
+  // (x,y) = sitting pose offset from the ground-contact origin (facing right)
+  const PARTS = [
+    { n: 'head',  r: 30,  d: 0,   x: 18,  y: -80 },
+    { n: 'neck',  r: 24,  d: 22,  x: 10,  y: -58, breath: 1 },
+    { n: 'body',  r: 34,  d: 50,  x: 0,   y: -40, breath: 1 },
+    { n: 'belly', r: 32,  d: 78,  x: -4,  y: -26, breath: 1 },
+    { n: 'rear',  r: 26,  d: 104, x: -12, y: -20, breath: 1 },
+    { n: 'pawL',  r: 9,   d: 66,  x: 14,  y: -8 },
+    { n: 'pawR',  r: 9,   d: 70,  x: 28,  y: -8 },
+    { n: 'hind',  r: 10,  d: 100, x: -6,  y: -7 },
+    { n: 'tail0', r: 10,  d: 122, x: -34, y: -14, tail: 0 },
+    { n: 'tail1', r: 9,   d: 134, x: -46, y: -18, tail: 1 },
+    { n: 'tail2', r: 8,   d: 146, x: -54, y: -28, tail: 2 },
+    { n: 'tail3', r: 7.5, d: 158, x: -56, y: -40, tail: 3 },
+    { n: 'tail4', r: 7,   d: 170, x: -52, y: -52, tail: 4 },
+  ];
+  const DMAX = Math.max(...PARTS.map(p => p.d));
+
+  // ---------- motion paths (approach -> tube -> exit), both directions ----------
+  const tubeF = 'C370 255 380 165 460 165 C540 165 560 315 640 315 C690 315 700 255 740 255';
+  const tubeB = 'C700 255 690 315 640 315 C560 315 540 165 460 165 C380 165 370 255 300 255';
+  const apF = 'M148 262 C200 262 250 255 300 255', exF = 'C790 255 820 262 848 262';
+  const apB = 'M812 262 C790 262 760 255 740 255', exB = 'C250 255 190 262 112 262';
+  const hidden = $('hidden');
+  const mk = d => el('path', { d }, hidden);
+  const tubeLen = $('tube').getTotalLength();
+  const ROUTES = {
+    1:  { path: mk(`${apF} ${tubeF} ${exF}`), ap: mk(apF).getTotalLength() },
+    '-1': { path: mk(`${apB} ${tubeB} ${exB}`), ap: mk(apB).getTotalLength() },
+  };
+  for (const k in ROUTES) {
+    const r = ROUTES[k];
+    r.len = r.path.getTotalLength();
+    r.tIn = r.ap;              // path length where the tube starts
+    r.tOut = r.ap + tubeLen;   // ... and ends
+  }
+
+  // ---------- build blob elements ----------
+  const gOut = $('gooOut'), gBody = $('gooBody');
+  const EARS = ['-26,-8 -20,-36 -2,-24', '26,-8 20,-36 2,-24'];
+  PARTS.forEach(p => {
+    p.gO = el('g', {}, gOut); el('circle', { r: p.r + OUT }, p.gO);
+    p.gB = el('g', {}, gBody); el('circle', { r: p.r }, p.gB);
+    if (p.n === 'head') {
+      for (const pts of EARS) {
+        el('polygon', { points: pts, stroke: '#3b3b4f', 'stroke-width': OUT * 2, 'stroke-linejoin': 'round' }, p.gO);
+        el('polygon', { points: pts }, p.gB);
+      }
+    }
+  });
+  const face = $('face'), stripes = $('stripes'), eyes = $('eyes'),
+        pupils = [...document.querySelectorAll('.pupil')],
+        mouthW = $('mouthW'), mouthO = $('mouthO'), shadow = $('shadow');
+
+  // ---------- timeline (seconds) ----------
+  const T = 11;
+  const PH = [
+    { t0: 0,    t1: 0.8,  mode: 'idle',   origin: 'L', m: 1 },
+    { t0: 0.8,  t1: 4.4,  mode: 'travel', dir: 1 },
+    { t0: 4.4,  t1: 4.9,  mode: 'idle',   origin: 'R', m: 1 },
+    { t0: 4.9,  t1: 5.4,  mode: 'turn',   origin: 'R', from: 1 },
+    { t0: 5.4,  t1: 5.9,  mode: 'idle',   origin: 'R', m: -1 },
+    { t0: 5.9,  t1: 9.5,  mode: 'travel', dir: -1 },
+    { t0: 9.5,  t1: 10.0, mode: 'idle',   origin: 'L', m: -1 },
+    { t0: 10.0, t1: 10.5, mode: 'turn',   origin: 'L', from: -1 },
+    { t0: 10.5, t1: 11,   mode: 'idle',   origin: 'L', m: 1 },
+  ];
+  const BLINKS = [0.45, 3.2, 4.7, 7.6, 9.8, 10.7];
+
+  // sitting pose position for a part (with idle tail wag / head bob)
+  function restPos(p, origin, m, t, hop) {
+    let lx = p.x, ly = p.y;
+    if (p.tail !== undefined) {
+      const k = p.tail;
+      lx += 2.5 * k * Math.sin(t * 4.2 + 0.8);
+      ly += -3 * k * Math.sin(t * 4.2);
+    }
+    if (p.n === 'head') ly += 1.5 * Math.sin(t * 3.5);
+    return { x: origin.x + m * lx, y: origin.y + ly + hop };
+  }
+
+  function computeIdle(p, ph, t) {
+    const origin = ORIGIN[ph.origin];
+    let m = ph.m, hop = 0, stretch = 1;
+    if (ph.mode === 'turn') {
+      const u = (t - ph.t0) / (ph.t1 - ph.t0);
+      m = ph.from * Math.cos(Math.PI * u);       // 2D flip
+      hop = -32 * Math.sin(Math.PI * u);         // little hop while turning
+      stretch = 1 + 0.15 * Math.sin(Math.PI * u);
+    }
+    const pos = restPos(p, origin, m, t, hop);
+    const br = p.breath ? 1 + 0.03 * Math.sin(t * 3.5) : 1;
+    return { x: pos.x, y: pos.y, ang: 0, rx: p.r * br, ry: p.r * br * stretch, m, q: 0, hop };
+  }
+
+  function computeTravel(p, ph, t) {
+    const dir = ph.dir, R = ROUTES[dir], m = dir;
+    const prog = easeInOut((t - ph.t0) / (ph.t1 - ph.t0));
+    const L = prog * (R.len + DMAX + 20);        // head's position along the route
+    const l = L - p.d;                            // this part's position
+    const oStart = dir > 0 ? ORIGIN.L : ORIGIN.R, oEnd = dir > 0 ? ORIGIN.R : ORIGIN.L;
+    const rest0 = restPos(p, oStart, m, t, 0), rest1 = restPos(p, oEnd, m, t, 0);
+    let x, y, ang = 0, q = 0;
+
+    if (l <= 0) { ({ x, y } = rest0); }
+    else if (l >= R.len) { ({ x, y } = rest1); }
+    else {
+      const pt = R.path.getPointAtLength(l);
+      const a = R.path.getPointAtLength(Math.max(0, l - 1));
+      const b = R.path.getPointAtLength(Math.min(R.len, l + 1));
+      ang = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI + (dir < 0 ? 180 : 0);
+      x = pt.x; y = pt.y;
+      if (l < BLEND) {                            // getting dragged off the sitting pose
+        const s = smooth(l / BLEND); x = lerp(rest0.x, x, s); y = lerp(rest0.y, y, s);
+      }
+      if (l > R.len - BLEND) {                    // re-forming on the other side
+        const s = smooth((l - (R.len - BLEND)) / BLEND); x = lerp(x, rest1.x, s); y = lerp(y, rest1.y, s);
+      }
+      // how "squeezed" is this part (0 = free, 1 = inside tube)
+      q = smoothstep(R.tIn - 60, R.tIn - 4, l) * (1 - smoothstep(R.tOut + 4, R.tOut + 70, l));
+    }
+
+    // squash to tube diameter, stretch lengthwise (roughly area preserving)
+    const ryT = Math.min(p.r, TUBE_R * 0.85);
+    const rxT = Math.min(p.r * 1.6, p.r * p.r / ryT);
+    let ry = lerp(p.r, ryT, q), rx = lerp(p.r, rxT, q);
+    const w = q * (1 - q) * 4;                    // wobble while squeezing in/out
+    ry *= 1 + 0.1 * w * Math.sin(t * 25 + p.d * 0.3);
+    rx *= 1 + 0.06 * w * Math.cos(t * 25 + p.d * 0.3);
+    return { x, y, ang, rx, ry, m, q, hop: 0 };
+  }
+
+  function frame(now) {
+    const t = (now / 1000) % T;
+    const ph = PH.find(p => t >= p.t0 && t < p.t1) || PH[PH.length - 1];
+    let head, body;
+
+    for (const p of PARTS) {
+      const s = ph.mode === 'travel' ? computeTravel(p, ph, t) : computeIdle(p, ph, t);
+      const sx = s.rx / p.r, sy = s.ry / p.r;
+      const tr = `translate(${s.x.toFixed(2)} ${s.y.toFixed(2)}) rotate(${s.ang.toFixed(2)}) scale(${(sx * s.m).toFixed(3)} ${sy.toFixed(3)})`;
+      p.gO.setAttribute('transform', tr);
+      p.gB.setAttribute('transform', tr);
+      if (p.n === 'head') { head = s; face.setAttribute('transform', tr); }
+      if (p.n === 'body') { body = s; stripes.setAttribute('transform', tr); }
+    }
+
+    // face expressions
+    let k = 1;
+    for (const b of BLINKS) { const d = Math.abs(t - b); if (d < 0.13) k = Math.min(k, Math.max(0.1, d / 0.13)); }
+    eyes.setAttribute('transform', `translate(0 -4) scale(1 ${k.toFixed(3)}) translate(0 4)`);
+    pupils.forEach(c => c.setAttribute('r', (3.5 + 1.6 * head.q).toFixed(2)));
+    mouthW.setAttribute('opacity', (1 - head.q).toFixed(2));
+    mouthO.setAttribute('opacity', head.q.toFixed(2));
+
+    // ground shadow
+    shadow.setAttribute('cx', body.x.toFixed(1));
+    shadow.setAttribute('rx', (48 * (1 - 0.5 * body.q) * (1 + body.hop / 120)).toFixed(1));
+    shadow.setAttribute('opacity', (0.15 * (1 - body.q) * (1 + body.hop / 80)).toFixed(3));
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
+```
+
+A few knobs you can tweak at the top of the script:
+
+- `TUBE_R` – how narrow the tube is (the cat squashes to fit it).
+- `BLEND` – how "stretchy" the cat is when being pulled off / snapping back into its sitting pose.
+- The `PH` timeline – durations of idle, travel, and turn phases (total loop is `T = 11` seconds).
+- `PARTS` – the blob layout; add/remove blobs or change `d` to alter how the body slurps in.

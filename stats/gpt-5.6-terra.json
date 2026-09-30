@@ -1,0 +1,11 @@
+{
+ "ok": true,
+ "effort": "high",
+ "seconds": 131.7,
+ "finish": "stop",
+ "prompt_tokens": 367,
+ "out_tokens": 7189,
+ "total_tokens": 7556,
+ "reasoning_tokens": 2588,
+ "html_bytes": 14608
+}

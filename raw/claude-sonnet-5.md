@@ -1,0 +1,381 @@
+Here's a self-contained HTML file — pure SVG + vanilla JS, no external libraries needed. It draws a cute cartoon cat that squashes, gets sucked into a glass tube, flows through as a "plug" of liquid (with little bubbles), and pops back out the other side with a jiggly elastic reform. It loops automatically, and there's a Replay button + speed slider.
+
+Just save this as `liquid-cat.html` and open it in a browser.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Liquid Cat 🐱💧</title>
+<style>
+  :root{
+    --panel:#ffffffcc;
+  }
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:linear-gradient(180deg,#e9f7ff,#fdfdfd);
+    font-family:'Comic Sans MS','Segoe UI',system-ui,sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:10px; color:#334;
+  }
+  h1{margin:12px 0 0; font-size:1.4rem;}
+  #status{
+    min-height:1.4em; font-size:1.05rem; font-weight:bold; color:#555;
+  }
+  #stage{
+    width:min(92vw,900px);
+    background:var(--panel);
+    border-radius:18px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.15);
+    padding:10px;
+  }
+  svg{ width:100%; height:auto; display:block; border-radius:12px; overflow:visible; }
+  #controls{
+    display:flex; gap:14px; align-items:center;
+    background:var(--panel); padding:10px 16px; border-radius:14px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.1); margin-bottom:16px;
+  }
+  button{
+    background:#ff9d4d; border:none; color:white; font-weight:bold;
+    padding:8px 18px; border-radius:20px; cursor:pointer; font-size:0.95rem;
+    box-shadow:0 3px 0 #d97b25; transition:transform .1s;
+  }
+  button:active{ transform:translateY(2px); box-shadow:0 1px 0 #d97b25; }
+  label{ font-size:0.85rem; }
+  input[type=range]{ vertical-align:middle; }
+
+  /* idle micro-animations (run continuously, invisible when parent opacity=0) */
+  .eyelids{ transform-box: fill-box; transform-origin: center; animation: blink 5s infinite; }
+  @keyframes blink{ 0%,92%,100%{transform:scaleY(0.02);} 95%{transform:scaleY(1);} }
+
+  .tail{ transform-box: fill-box; transform-origin: 90% 90%; animation: wag 2.6s ease-in-out infinite; }
+  @keyframes wag{ 0%,100%{transform:rotate(-6deg);} 50%{transform:rotate(10deg);} }
+
+  .cloud{ animation: drift 50s linear infinite; }
+  .cloud2{ animation-duration:65s; animation-delay:-20s; }
+  @keyframes drift{ from{transform:translateX(0);} to{transform:translateX(-900px);} }
+
+  .bubble{ fill:#fff; opacity:0; }
+</style>
+</head>
+<body>
+
+<h1>🐱💧 The Amazing Liquid Cat</h1>
+<div id="status">😺 Just chillin'...</div>
+
+<div id="stage">
+<svg id="scene" viewBox="0 0 800 450" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cfeeff"/>
+      <stop offset="100%" stop-color="#f7fcff"/>
+    </linearGradient>
+    <linearGradient id="groundGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a6e07a"/>
+      <stop offset="100%" stop-color="#6fbf4a"/>
+    </linearGradient>
+    <linearGradient id="tubeGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="55%" stop-color="#bfe6ff" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#8fc7ee" stop-opacity="0.55"/>
+    </linearGradient>
+    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-opacity="0.25"/>
+    </filter>
+    <clipPath id="tubeClip">
+      <rect id="clipRect" x="220" y="0" width="0" height="450"/>
+    </clipPath>
+  </defs>
+
+  <!-- BACKGROUND -->
+  <rect x="0" y="0" width="800" height="450" fill="url(#skyGrad)"/>
+  <circle cx="730" cy="60" r="34" fill="#ffe066"/>
+  <g class="cloud" opacity="0.9">
+    <ellipse cx="120" cy="70" rx="30" ry="16" fill="#fff"/>
+    <ellipse cx="150" cy="60" rx="24" ry="14" fill="#fff"/>
+    <ellipse cx="95" cy="62" rx="20" ry="12" fill="#fff"/>
+  </g>
+  <g class="cloud cloud2" opacity="0.85">
+    <ellipse cx="520" cy="45" rx="26" ry="14" fill="#fff"/>
+    <ellipse cx="548" cy="38" rx="20" ry="12" fill="#fff"/>
+    <ellipse cx="495" cy="40" rx="18" ry="10" fill="#fff"/>
+  </g>
+  <rect x="0" y="360" width="800" height="90" fill="url(#groundGrad)"/>
+
+  <!-- TUBE STAND -->
+  <rect x="345" y="240" width="10" height="120" rx="3" fill="#9aa1a8"/>
+  <rect x="445" y="240" width="10" height="120" rx="3" fill="#9aa1a8"/>
+
+  <!-- LABEL -->
+  <rect x="320" y="130" width="160" height="30" rx="8" fill="#333" opacity="0.85"/>
+  <text x="400" y="150" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold" font-family="Comic Sans MS, sans-serif">LIQUI-CAT 3000</text>
+
+  <!-- TUBE GLASS BACK -->
+  <path d="M220,190 C250,190 250,220 280,220 L520,220 C550,220 550,190 580,190
+           L580,270 C550,270 550,240 520,240 L280,240 C250,240 250,270 220,270 Z"
+        fill="url(#tubeGrad)" stroke="#5b8fb3" stroke-width="2"/>
+
+  <!-- LIQUID (clipped) -->
+  <path id="tubeLiquid"
+        d="M220,190 C250,190 250,220 280,220 L520,220 C550,220 550,190 580,190
+           L580,270 C550,270 550,240 520,240 L280,240 C250,240 250,270 220,270 Z"
+        fill="#f4a63d" fill-opacity="0.85" clip-path="url(#tubeClip)"/>
+
+  <!-- bubbles inside the liquid -->
+  <g id="bubbles">
+    <circle class="bubble" r="3"/>
+    <circle class="bubble" r="2.2"/>
+    <circle class="bubble" r="2.6"/>
+    <circle class="bubble" r="2"/>
+    <circle class="bubble" r="3.4"/>
+  </g>
+
+  <!-- glass shine on top -->
+  <path d="M225,198 C250,198 252,212 278,212 L520,212 C548,212 550,198 575,198"
+        fill="none" stroke="#ffffff" stroke-opacity="0.7" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- rims -->
+  <ellipse cx="220" cy="230" rx="6" ry="40" fill="none" stroke="#5b8fb3" stroke-width="2"/>
+  <ellipse cx="580" cy="230" rx="6" ry="40" fill="none" stroke="#5b8fb3" stroke-width="2"/>
+  <ellipse cx="280" cy="230" rx="3" ry="10" fill="none" stroke="#5b8fb3" stroke-width="1.5"/>
+  <ellipse cx="520" cy="230" rx="3" ry="10" fill="none" stroke="#5b8fb3" stroke-width="1.5"/>
+
+  <!-- CAT SHADOW -->
+  <ellipse id="catShadow" cx="170" cy="358" rx="50" ry="10" fill="#000" opacity="0.25"/>
+
+  <!-- CAT -->
+  <g id="catGroup" filter="url(#softShadow)">
+    <path class="tail" d="M -48,-25 C -90,-35 -95,-90 -60,-100" stroke="#e8871e" stroke-width="16" fill="none" stroke-linecap="round"/>
+    <circle cx="-60" cy="-100" r="8" fill="#c96f16"/>
+
+    <ellipse cx="0" cy="-18" rx="58" ry="32" fill="#f4a63d"/>
+    <ellipse cx="0" cy="-50" rx="50" ry="45" fill="#f4a63d"/>
+    <ellipse cx="0" cy="-35" rx="26" ry="34" fill="#fff5df"/>
+
+    <ellipse cx="-20" cy="-6" rx="13" ry="9" fill="#f4a63d"/>
+    <ellipse cx="20" cy="-6" rx="13" ry="9" fill="#f4a63d"/>
+
+    <polygon points="-34,-125 -6,-112 -22,-168" fill="#f4a63d"/>
+    <polygon points="34,-125 6,-112 22,-168" fill="#f4a63d"/>
+
+    <circle cx="0" cy="-108" r="34" fill="#f4a63d"/>
+
+    <polygon points="-27,-122 -12,-115 -20,-150" fill="#ffb6c1"/>
+    <polygon points="27,-122 12,-115 20,-150" fill="#ffb6c1"/>
+
+    <path d="M -14,-138 Q 0,-146 14,-138" stroke="#d98620" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M -30,-68 Q -20,-58 -26,-48" stroke="#d98620" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M 30,-68 Q 20,-58 26,-48" stroke="#d98620" stroke-width="4" fill="none" stroke-linecap="round"/>
+
+    <circle cx="-24" cy="-96" r="6" fill="#ff9aa2" opacity="0.4"/>
+    <circle cx="24" cy="-96" r="6" fill="#ff9aa2" opacity="0.4"/>
+
+    <ellipse cx="-13" cy="-108" rx="9" ry="11" fill="#fff"/>
+    <ellipse cx="13" cy="-108" rx="9" ry="11" fill="#fff"/>
+    <circle cx="-12" cy="-106" r="5" fill="#2b2b2b"/>
+    <circle cx="14" cy="-106" r="5" fill="#2b2b2b"/>
+    <circle cx="-14" cy="-109" r="1.6" fill="#fff"/>
+    <circle cx="12" cy="-109" r="1.6" fill="#fff"/>
+
+    <g class="eyelids">
+      <ellipse cx="-13" cy="-108" rx="9" ry="11" fill="#f4a63d"/>
+      <ellipse cx="13" cy="-108" rx="9" ry="11" fill="#f4a63d"/>
+    </g>
+
+    <polygon points="-4,-96 4,-96 0,-90" fill="#ff90a8"/>
+    <path d="M0,-90 Q -8,-82 -16,-86" stroke="#7a4a1e" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M0,-90 Q 8,-82 16,-86" stroke="#7a4a1e" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+    <g stroke="#555" stroke-width="1.3" stroke-linecap="round">
+      <line x1="-14" y1="-96" x2="-50" y2="-102"/>
+      <line x1="-14" y1="-92" x2="-52" y2="-92"/>
+      <line x1="-14" y1="-88" x2="-50" y2="-80"/>
+      <line x1="14" y1="-96" x2="50" y2="-102"/>
+      <line x1="14" y1="-92" x2="52" y2="-92"/>
+      <line x1="14" y1="-88" x2="50" y2="-80"/>
+    </g>
+  </g>
+</svg>
+</div>
+
+<div id="controls">
+  <button id="replayBtn">🔁 Replay</button>
+  <label>Speed
+    <input type="range" id="speed" min="0.5" max="2" step="0.1" value="1">
+  </label>
+</div>
+
+<script>
+(function(){
+  const catGroup = document.getElementById('catGroup');
+  const catShadow = document.getElementById('catShadow');
+  const clipRect = document.getElementById('clipRect');
+  const bubbles = Array.from(document.querySelectorAll('.bubble'));
+  const statusEl = document.getElementById('status');
+  const replayBtn = document.getElementById('replayBtn');
+  const speedInput = document.getElementById('speed');
+
+  // ---- geometry constants ----
+  const NORMAL_Y = 340, ALIGNED_Y = 245;
+  const CAT_START_X = 170, CAT_END_X = 630;
+  const TUBE_Y = 230;
+  const TUBE_ENTER_X = 220, TUBE_NARROW_START_X = 280,
+        TUBE_NARROW_END_X = 520, TUBE_EXIT_X = 580;
+
+  // ---- timeline (ms) ----
+  const CAT_MELT_START = 1200, CAT_MELT_END = 2400;
+  const LIQUID_FILL_START = 1600, LIQUID_FILL_END = 2600;
+  const LIQUID_PLUG_END = 4000, LIQUID_DRAIN_END = 5200;
+  const CAT_REFORM_START = 4300, CAT_REFORM_END = 5600;
+  const FADE_OUT_START = 7000, RESET_FADE_START = 7300;
+  const TOTAL = 7800;
+
+  const STATUS_STEPS = [
+    [0, "😺 Just chillin'..."],
+    [CAT_MELT_START, "🫠 Uh oh, going liquid!"],
+    [LIQUID_PLUG_END, "💧 Flowing through the tube..."],
+    [CAT_REFORM_START, "💧 Almost through..."],
+    [CAT_REFORM_END, "✨ Reforming!"],
+    [FADE_OUT_START, "😺 Ta-da! Good as new."],
+    [RESET_FADE_START, "🔄 Looping..."]
+  ];
+
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function easeInCubic(t){ return t*t*t; }
+  function easeOutElastic(x){
+    if (x === 0) return 0;
+    if (x === 1) return 1;
+    const c4 = (2*Math.PI)/3;
+    return Math.pow(2, -10*x) * Math.sin((x*10 - 0.75) * c4) + 1;
+  }
+
+  function computeCat(t){
+    let x = CAT_START_X, y = NORMAL_Y, sx = 1, sy = 1, op = 1;
+    const bob = Math.sin(t*0.004)*3;
+
+    if (t < CAT_MELT_START){
+      x = CAT_START_X; y = NORMAL_Y + bob; sx = 1; sy = 1; op = 1;
+
+    } else if (t < CAT_MELT_END){
+      const k = (t - CAT_MELT_START) / (CAT_MELT_END - CAT_MELT_START);
+      if (k < 0.35){
+        const kk = k/0.35;
+        sx = lerp(1, 1.25, kk); sy = lerp(1, 0.75, kk);
+        x = CAT_START_X; y = NORMAL_Y;
+      } else {
+        const kk = (k-0.35)/0.65;
+        const e = easeInCubic(kk);
+        sx = lerp(1.25, 0.5, e); sy = lerp(0.75, 0.15, e);
+        x = lerp(CAT_START_X, TUBE_ENTER_X+15, e);
+        y = lerp(NORMAL_Y, ALIGNED_Y, e);
+        op = lerp(1, 0, e);
+      }
+
+    } else if (t < CAT_REFORM_START){
+      x = TUBE_EXIT_X - 15; y = ALIGNED_Y; sx = 0.5; sy = 0.15; op = 0;
+
+    } else if (t < CAT_REFORM_END){
+      const k = (t - CAT_REFORM_START) / (CAT_REFORM_END - CAT_REFORM_START);
+      const e = easeOutElastic(k);
+      op = Math.min(1, k/0.3);
+      sx = lerp(0.5, 1, e); sy = lerp(0.15, 1, e);
+      x = lerp(TUBE_EXIT_X - 15, CAT_END_X, Math.min(1, k/0.6));
+      y = lerp(ALIGNED_Y, NORMAL_Y, Math.min(1, k/0.6));
+
+    } else if (t < FADE_OUT_START){
+      x = CAT_END_X; y = NORMAL_Y + bob; sx = 1; sy = 1; op = 1;
+
+    } else if (t < RESET_FADE_START){
+      const k = (t - FADE_OUT_START) / (RESET_FADE_START - FADE_OUT_START);
+      x = CAT_END_X; y = NORMAL_Y; sx = 1; sy = 1; op = lerp(1, 0, k);
+
+    } else {
+      const k = (t - RESET_FADE_START) / (TOTAL - RESET_FADE_START);
+      x = CAT_START_X; y = NORMAL_Y; sx = lerp(0.9,1,k); sy = lerp(0.9,1,k); op = lerp(0,1,k);
+    }
+    return {x,y,sx,sy,op};
+  }
+
+  function computeLiquid(t){
+    let trailX = TUBE_ENTER_X, leadX = TUBE_ENTER_X;
+    if (t < LIQUID_FILL_START || t >= LIQUID_DRAIN_END){
+      trailX = TUBE_ENTER_X; leadX = TUBE_ENTER_X;
+    } else if (t < LIQUID_FILL_END){
+      const k = (t - LIQUID_FILL_START)/(LIQUID_FILL_END - LIQUID_FILL_START);
+      leadX = lerp(TUBE_ENTER_X, 350, k); trailX = TUBE_ENTER_X;
+    } else if (t < LIQUID_PLUG_END){
+      const k = (t - LIQUID_FILL_END)/(LIQUID_PLUG_END - LIQUID_FILL_END);
+      leadX = lerp(350, TUBE_NARROW_END_X, k);
+      trailX = lerp(TUBE_ENTER_X, 380, k);
+    } else {
+      const k = (t - LIQUID_PLUG_END)/(LIQUID_DRAIN_END - LIQUID_PLUG_END);
+      leadX = lerp(TUBE_NARROW_END_X, TUBE_EXIT_X, Math.min(1, k/0.5));
+      trailX = lerp(380, TUBE_EXIT_X, k);
+    }
+    return {trailX, leadX};
+  }
+
+  let startTime = null;
+  let speed = 1;
+  speedInput.addEventListener('input', e => speed = parseFloat(e.target.value));
+  replayBtn.addEventListener('click', () => { startTime = null; });
+
+  let lastStatus = "";
+  function updateStatus(t){
+    let msg = STATUS_STEPS[0][1];
+    for (const [threshold, text] of STATUS_STEPS){
+      if (t >= threshold) msg = text;
+    }
+    if (msg !== lastStatus){ statusEl.textContent = msg; lastStatus = msg; }
+  }
+
+  function frame(now){
+    if (startTime === null) startTime = now;
+    const elapsed = (now - startTime) * speed;
+    const t = elapsed % TOTAL;
+
+    const cat = computeCat(t);
+    const liq = computeLiquid(t);
+
+    catGroup.setAttribute('transform',
+      `translate(${cat.x.toFixed(2)},${cat.y.toFixed(2)}) scale(${cat.sx.toFixed(3)},${cat.sy.toFixed(3)})`);
+    catGroup.style.opacity = cat.op;
+
+    const shadowFactor = clamp((cat.y-260)/(NORMAL_Y-260), 0, 1) * cat.op;
+    catShadow.setAttribute('cx', cat.x);
+    catShadow.setAttribute('rx', 50*cat.sx*0.9);
+    catShadow.setAttribute('ry', 10*cat.sx*0.5);
+    catShadow.style.opacity = shadowFactor*0.3;
+
+    const w = Math.max(0, liq.leadX - liq.trailX);
+    clipRect.setAttribute('x', liq.trailX);
+    clipRect.setAttribute('width', w);
+
+    bubbles.forEach((b,i) => {
+      if (w < 6){ b.style.opacity = 0; return; }
+      const frac = ((t*0.0015) + i/bubbles.length) % 1;
+      const bx = liq.trailX + frac*w;
+      b.setAttribute('cx', bx.toFixed(1));
+      b.setAttribute('cy', (TUBE_Y + Math.sin(t*0.01 + i*2)*4).toFixed(1));
+      b.style.opacity = 0.55;
+    });
+
+    updateStatus(t);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
+```
+
+Notes on tweaking it:
+
+- **Timing**: all the phase lengths live in the constants block near the top of the `<script>` (`CAT_MELT_START`, `LIQUID_PLUG_END`, etc.) in milliseconds — nudge those to speed up/slow down parts of the sequence.
+- **The "liquid" trick**: the tube is one SVG path; the liquid is the *same* path, clipped by a `<rect>` whose `x`/`width` are animated each frame — so it looks like it's filling/draining the actual tube shape.
+- **The cat**: it's one `<g id="catGroup">` transformed with `translate + scale` each frame, so squash/stretch/fade is just numbers, no path morphing needed — easy to restyle colors (`#f4a63d` etc.) or swap in your own cat art inside that group.
+- Blinking, tail-wag, and cloud drift run as independent CSS `@keyframes`, decoupled from the JS timeline, so they keep looping even while the cat is invisible.

@@ -1,0 +1,463 @@
+Save this as `liquid-cat.html` and open it in a browser. It is a self-contained animated SVG/HTML file with a cartoon cat squeezing into a narrow tube as goo and reforming on the other side.
+
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Liquid Cat Tube Animation</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 15%, #3f315a 0%, #211a32 45%, #14101f 100%);
+      font-family: system-ui, sans-serif;
+    }
+
+    .frame {
+      width: min(100vw, 1100px);
+      padding: 18px;
+    }
+
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 26px;
+      overflow: visible;
+      filter: drop-shadow(0 18px 35px rgba(0, 0, 0, 0.4));
+    }
+
+    .caption {
+      margin: 12px 0 0;
+      color: #d9d0e9;
+      text-align: center;
+      font-size: 14px;
+      letter-spacing: 0.03em;
+      opacity: 0.85;
+    }
+
+    .cat-outline {
+      stroke: #4a2540;
+      stroke-width: 5;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+
+    .cat-fill {
+      fill: #f5a623;
+    }
+
+    .cat-light {
+      fill: #ffd768;
+    }
+
+    .cat-dark {
+      fill: #d77924;
+    }
+
+    .eye {
+      fill: #2e1d31;
+    }
+
+    .blush {
+      fill: #ed7f83;
+      opacity: 0.8;
+    }
+
+    .bubble {
+      fill: #fff5ca;
+      opacity: 0.7;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .caption::after {
+        content: " (reduced motion enabled)";
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <svg viewBox="0 0 1000 430" role="img" aria-label="A cartoon cat turns into liquid and travels through a narrow tube.">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stop-color="#5b426d" />
+          <stop offset="1" stop-color="#322643" />
+        </linearGradient>
+
+        <linearGradient id="tubeGlass" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stop-color="#e9fbff" stop-opacity="0.95" />
+          <stop offset="0.48" stop-color="#9ccce3" stop-opacity="0.8" />
+          <stop offset="1" stop-color="#74a2be" stop-opacity="0.9" />
+        </linearGradient>
+
+        <linearGradient id="goo" x1="0" x2="1">
+          <stop offset="0" stop-color="#f28b25" />
+          <stop offset="0.45" stop-color="#ffc638" />
+          <stop offset="1" stop-color="#f28b25" />
+        </linearGradient>
+
+        <filter id="softShadow" x="-30%" y="-40%" width="160%" height="200%">
+          <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#190e22" flood-opacity="0.45"/>
+        </filter>
+
+        <filter id="gooGlow" x="-30%" y="-100%" width="160%" height="300%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+
+        <!-- Cat is centered roughly around 0,0 -->
+        <g id="cat">
+          <!-- Tail -->
+          <path
+            class="cat-fill cat-outline"
+            d="M 51 12
+               C 89 13, 100 -12, 93 -39
+               C 88 -60, 66 -59, 63 -43"
+            fill="none"
+            stroke-width="15"
+          />
+
+          <!-- Body -->
+          <ellipse class="cat-fill cat-outline" cx="13" cy="9" rx="59" ry="43" />
+
+          <!-- Belly -->
+          <ellipse class="cat-light" cx="20" cy="18" rx="31" ry="24" opacity="0.72" />
+
+          <!-- Rear paw -->
+          <path class="cat-fill cat-outline" d="M 34 40 Q 48 61 66 45" />
+
+          <!-- Head -->
+          <circle class="cat-fill cat-outline" cx="-34" cy="-36" r="34" />
+
+          <!-- Ears -->
+          <path class="cat-fill cat-outline" d="M -59 -57 L -57 -91 L -31 -65 Z" />
+          <path class="cat-fill cat-outline" d="M -19 -66 L 5 -88 L -3 -50 Z" />
+          <path d="M -54 -63 L -53 -80 L -40 -67 Z" fill="#ec8d91" />
+          <path d="M -17 -68 L -2 -82 L -8 -59 Z" fill="#ec8d91" />
+
+          <!-- Face -->
+          <ellipse class="eye" cx="-46" cy="-40" rx="4.4" ry="6.8" />
+          <ellipse class="eye" cx="-25" cy="-40" rx="4.4" ry="6.8" />
+          <circle cx="-35" cy="-29" r="4" fill="#c95467" />
+          <path d="M -35 -25 Q -42 -18 -48 -24 M -35 -25 Q -29 -18 -23 -24"
+                fill="none" stroke="#4a2540" stroke-width="3" stroke-linecap="round" />
+
+          <!-- Whiskers -->
+          <path d="M -58 -30 L -86 -36 M -58 -24 L -87 -22 M -13 -30 L 8 -37"
+                fill="none" stroke="#4a2540" stroke-width="2.4" stroke-linecap="round" />
+
+          <!-- Blush -->
+          <ellipse class="blush" cx="-57" cy="-24" rx="6" ry="3.5" />
+          <ellipse class="blush" cx="-14" cy="-24" rx="6" ry="3.5" />
+
+          <!-- Front paws -->
+          <path class="cat-fill cat-outline" d="M -16 42 Q -10 61 6 48" />
+          <path class="cat-fill cat-outline" d="M 10 43 Q 17 61 31 47" />
+
+          <!-- Small shiny spot -->
+          <ellipse cx="-3" cy="-7" rx="9" ry="6" fill="#ffe99a" opacity="0.7" />
+        </g>
+
+        <clipPath id="tubeClip">
+          <path
+            d="M 255 245
+               C 350 238, 415 257, 500 245
+               S 640 233, 715 245"
+            fill="none"
+            stroke="#000"
+            stroke-width="29"
+            stroke-linecap="round"
+          />
+        </clipPath>
+      </defs>
+
+      <!-- Background panel -->
+      <rect x="8" y="8" width="984" height="414" rx="25" fill="url(#bg)" />
+      <path d="M 32 355 Q 235 315 430 355 T 968 345"
+            fill="none" stroke="#776084" stroke-width="3" opacity="0.35" />
+
+      <!-- Decorative stars -->
+      <g fill="#d6c6f0" opacity="0.45">
+        <circle cx="86" cy="86" r="3" />
+        <circle cx="195" cy="68" r="2" />
+        <circle cx="862" cy="90" r="3" />
+        <circle cx="937" cy="160" r="2" />
+        <circle cx="749" cy="67" r="2" />
+      </g>
+
+      <!-- Tube shadow -->
+      <path
+        d="M 255 253
+           C 350 246, 415 265, 500 253
+           S 640 241, 715 253"
+        fill="none"
+        stroke="#180f26"
+        stroke-width="52"
+        stroke-linecap="round"
+        opacity="0.32"
+        transform="translate(0 9)"
+      />
+
+      <!-- Tube outer shell -->
+      <path
+        d="M 255 245
+           C 350 238, 415 257, 500 245
+           S 640 233, 715 245"
+        fill="none"
+        stroke="#4b355a"
+        stroke-width="52"
+        stroke-linecap="round"
+      />
+
+      <!-- Tube glass -->
+      <path
+        d="M 255 245
+           C 350 238, 415 257, 500 245
+           S 640 233, 715 245"
+        fill="none"
+        stroke="url(#tubeGlass)"
+        stroke-width="41"
+        stroke-linecap="round"
+      />
+
+      <!-- Moving orange cat-goo inside tube -->
+      <g clip-path="url(#tubeClip)">
+        <path id="gooPath"
+              fill="none"
+              stroke="url(#goo)"
+              stroke-width="24"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              filter="url(#gooGlow)" />
+
+        <path id="gooHighlight"
+              fill="none"
+              stroke="#fff0a3"
+              stroke-width="4.5"
+              stroke-linecap="round"
+              opacity="0.75" />
+
+        <g id="tubeBubbles">
+          <circle class="bubble" r="3.3" />
+          <circle class="bubble" r="2.2" />
+          <circle class="bubble" r="2.8" />
+        </g>
+      </g>
+
+      <!-- Tube shine -->
+      <path
+        d="M 261 237
+           C 350 231, 416 248, 499 237
+           S 640 225, 708 237"
+        fill="none"
+        stroke="#ffffff"
+        stroke-width="4.5"
+        stroke-linecap="round"
+        opacity="0.5"
+      />
+
+      <!-- Tube end rings -->
+      <g>
+        <circle cx="255" cy="245" r="27" fill="#5b3f6d" />
+        <circle cx="255" cy="245" r="20" fill="#b8e1ec" />
+        <circle cx="255" cy="245" r="15" fill="#3f667a" />
+
+        <circle cx="715" cy="245" r="27" fill="#5b3f6d" />
+        <circle cx="715" cy="245" r="20" fill="#b8e1ec" />
+        <circle cx="715" cy="245" r="15" fill="#3f667a" />
+      </g>
+
+      <!-- A little emerging liquid droplet -->
+      <g id="exitBlob" filter="url(#gooGlow)">
+        <circle r="12" fill="#f7a329" />
+        <ellipse cy="-4" rx="5" ry="2.5" fill="#ffe992" opacity="0.75" />
+      </g>
+
+      <!-- Incoming cat, flipped to face the tube -->
+      <g id="leftCat" filter="url(#softShadow)">
+        <use href="#cat" />
+      </g>
+
+      <!-- Reformed cat, facing the tube -->
+      <g id="rightCat" filter="url(#softShadow)">
+        <use href="#cat" />
+      </g>
+
+      <!-- Small goo drips beneath tube -->
+      <g id="drips" opacity="0">
+        <path id="drip1" fill="#f5a623" stroke="#b85d26" stroke-width="3" />
+        <path id="drip2" fill="#ffc638" stroke="#b85d26" stroke-width="3" />
+      </g>
+
+      <text x="500" y="390" text-anchor="middle"
+            fill="#eadff6" opacity="0.75"
+            font-size="16" font-weight="700" letter-spacing="2">
+        LIQUID CAT TRANSFER SYSTEM
+      </text>
+    </svg>
+
+    <p class="caption">A very normal cat doing very normal cat things.</p>
+  </main>
+
+  <script>
+    const flow = document.querySelector("#gooPath");
+    const flowHighlight = document.querySelector("#gooHighlight");
+    const flowGuide = document.querySelector("defs path[d^='M 255 245']");
+    const leftCat = document.querySelector("#leftCat");
+    const rightCat = document.querySelector("#rightCat");
+    const exitBlob = document.querySelector("#exitBlob");
+    const tubeBubbles = [...document.querySelectorAll("#tubeBubbles circle")];
+    const drips = document.querySelector("#drips");
+    const drip1 = document.querySelector("#drip1");
+    const drip2 = document.querySelector("#drip2");
+
+    const duration = 8500;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const flowLength = flowGuide.getTotalLength();
+
+    const clamp = (n, min = 0, max = 1) => Math.max(min, Math.min(max, n));
+    const lerp = (a, b, t) => a + (b - a) * t;
+
+    function smoothstep(a, b, value) {
+      const x = clamp((value - a) / (b - a));
+      return x * x * (3 - 2 * x);
+    }
+
+    function samplePath(from, to, steps = 42) {
+      if (to <= from + 0.1) return "";
+      const points = [];
+
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const point = flowGuide.getPointAtLength(lerp(from, to, t));
+        points.push(`${i === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`);
+      }
+      return points.join(" ");
+    }
+
+    function animate(now) {
+      const p = reducedMotion ? 0.92 : (now % duration) / duration;
+
+      /*
+        Timeline:
+        0.00–0.12  cat waits
+        0.12–0.38  cat compresses into tube
+        0.22–0.76  goo moves through tube
+        0.60–0.90  cat reforms at exit
+      */
+
+      // Incoming cat
+      const enter = smoothstep(0.12, 0.38, p);
+      const leftX = lerp(145, 258, enter);
+      const leftY = lerp(272, 245, enter);
+      const leftSX = lerp(1, 0.14, enter);
+      const leftSY = lerp(1, 0.18, enter) * (1 + Math.sin(now / 80) * 0.025 * enter);
+      const leftOpacity = 1 - smoothstep(0.28, 0.42, p);
+      const leftRotate = -5 * (1 - enter) + Math.sin(now / 250) * 1.5 * (1 - enter);
+
+      leftCat.setAttribute(
+        "transform",
+        `translate(${leftX} ${leftY}) rotate(${leftRotate}) scale(${-leftSX} ${leftSY})`
+      );
+      leftCat.setAttribute("opacity", leftOpacity.toFixed(3));
+
+      // Goo flow inside pipe
+      const head = flowLength * smoothstep(0.20, 0.73, p);
+      let tail;
+
+      if (p < 0.73) {
+        tail = Math.max(0, head - 185);
+      } else {
+        const drain = smoothstep(0.73, 0.96, p);
+        tail = lerp(Math.max(0, flowLength - 185), flowLength, drain);
+      }
+
+      const gooVisible = clamp(smoothstep(0.20, 0.24, p) - smoothstep(0.94, 0.985, p));
+      const gooD = samplePath(tail, head, 42);
+
+      flow.setAttribute("d", gooD);
+      flow.setAttribute("opacity", gooVisible.toFixed(3));
+
+      // Highlight is a shorter section toward the leading edge
+      const highlightStart = lerp(tail, head, 0.27);
+      flowHighlight.setAttribute("d", samplePath(highlightStart, head, 25));
+      flowHighlight.setAttribute("opacity", (gooVisible * 0.75).toFixed(3));
+
+      // Little bubbles move with the goo
+      tubeBubbles.forEach((bubble, i) => {
+        const bubblePos = tail + (head - tail) * (0.22 + i * 0.24);
+        const point = flowGuide.getPointAtLength(clamp(bubblePos, 0, flowLength));
+        const bob = Math.sin(now / 170 + i * 2.1) * 5;
+        bubble.setAttribute("cx", point.x);
+        bubble.setAttribute("cy", point.y + bob);
+        bubble.setAttribute("opacity", (gooVisible * (0.45 + i * 0.12)).toFixed(3));
+      });
+
+      // Reforming cat at the right tube opening
+      const out = smoothstep(0.60, 0.89, p);
+      const rightX = lerp(723, 816, out);
+      const rightY = lerp(245, 272, out);
+      const rightSX = lerp(0.14, 1, out);
+      const rightSY = lerp(0.18, 1, out) * (1 + Math.sin(now / 95) * 0.04 * (1 - out));
+      const rightOpacity = smoothstep(0.61, 0.71, p);
+      const rightRotate = lerp(7, 0, out);
+
+      rightCat.setAttribute(
+        "transform",
+        `translate(${rightX} ${rightY}) rotate(${rightRotate}) scale(${rightSX} ${rightSY})`
+      );
+      rightCat.setAttribute("opacity", rightOpacity.toFixed(3));
+
+      // Blob just outside tube while cat comes out
+      const blobProgress = smoothstep(0.56, 0.78, p);
+      const blobFade = smoothstep(0.58, 0.66, p) - smoothstep(0.74, 0.84, p);
+      const blobX = lerp(714, 752, blobProgress);
+      const blobY = 245 + Math.sin(now / 110) * 3;
+
+      exitBlob.setAttribute("transform", `translate(${blobX} ${blobY}) scale(${1 - out * 0.55})`);
+      exitBlob.setAttribute("opacity", clamp(blobFade).toFixed(3));
+
+      // A couple of brief drips
+      const dripAmount = smoothstep(0.37, 0.54, p) - smoothstep(0.56, 0.65, p);
+      drips.setAttribute("opacity", clamp(dripAmount * 0.8).toFixed(3));
+
+      const wobble = Math.sin(now / 120) * 3;
+      drip1.setAttribute(
+        "d",
+        `M 382 259
+         C 376 275, 379 ${287 + wobble}, 386 ${292 + wobble}
+         C 394 ${284 + wobble}, 394 272, 389 259 Z`
+      );
+      drip2.setAttribute(
+        "d",
+        `M 570 258
+         C 565 271, 567 ${279 - wobble}, 573 ${284 - wobble}
+         C 579 ${279 - wobble}, 580 269, 576 258 Z`
+      );
+
+      if (!reducedMotion) requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
+```

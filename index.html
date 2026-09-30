@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquid Cat Bench</title>
+<style>
+  :root {
+    --bg: #f4f4f2; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70;
+    --line: #d9d9dc; --accent: #2f6fdd; --bad: #c43d3d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141416; --panel: #1e1e21; --text: #ececef; --muted: #9a9aa2;
+      --line: #34343a; --accent: #6d9cf0; --bad: #e57373;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .prompt { color: var(--muted); font-size: 12px; flex: 1 1 280px; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  label.toggle { display: flex; gap: 6px; align-items: center; cursor: pointer; user-select: none; }
+  main { flex: 1; display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--line); min-height: 0; }
+  main[hidden] { display: none; }
+  main.split { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 800px) { main.split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+  .pane { display: flex; flex-direction: column; background: var(--bg); min-width: 0; min-height: 0; }
+  .pane[hidden] { display: none; }
+  .bar {
+    display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
+    padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  select, button {
+    font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px;
+  }
+  button { cursor: pointer; }
+  button:hover, select:hover { border-color: var(--accent); }
+  .stats { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .stats a { color: var(--accent); }
+  .frame { flex: 1; position: relative; min-height: 0; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+  #table { flex: 1; overflow: auto; padding: 12px 16px; }
+  #table[hidden] { display: none; }
+  #table table { border-collapse: collapse; width: 100%; max-width: 1100px;
+    font-variant-numeric: tabular-nums; }
+  #table th, #table td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: right;
+    white-space: nowrap; }
+  #table th:first-child, #table td:first-child, #table th.l, #table td.l { text-align: left; }
+  #table th { cursor: pointer; user-select: none; color: var(--muted); font-weight: 600;
+    position: sticky; top: 0; background: var(--bg); }
+  #table th.sorted { color: var(--text); }
+  #table tbody tr { cursor: pointer; }
+  #table tbody tr:hover { background: var(--panel); }
+  #table .note { color: var(--muted); font-size: 12px; margin-top: 10px; max-width: 1100px; }
+  .fail { position: absolute; inset: 0; padding: 24px; color: var(--bad); white-space: pre-wrap;
+    overflow: auto; font: 12px/1.5 ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Liquid Cat Bench</h1>
+  <span class="prompt" id="prompt"></span>
+  <label class="toggle"><input type="checkbox" id="tableBox"> Table</label>
+  <label class="toggle"><input type="checkbox" id="split"> Side by side</label>
+</header>
+<section id="table" hidden></section>
+<main id="main">
+  <section class="pane" id="paneA"></section>
+  <section class="pane" id="paneB" hidden></section>
+</main>
+<script>
+const RESULTS = [
+ {
+  "model": "claude-opus-5-5",
+  "ok": true,
+  "effort": "high",
+  "seconds": 726.1,
+  "finish": "stop",
+  "prompt_tokens": 222,
+  "out_tokens": 75649,
+  "total_tokens": 75871,
+  "reasoning_tokens": null,
+  "html_bytes": 26083,
+  "route": "proxy",
+  "cost": 1.5139,
+  "price": {
+   "in": 4.0,
+   "out": 20.0,
+   "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+  }
+ },
+ {
+  "model": "claude-fable-5-1",
+  "ok": true,
+  "effort": "high",
+  "seconds": 414.9,
+  "finish": "stop",
+  "prompt_tokens": 222,
+  "out_tokens": 33614,
+  "total_tokens": 33836,
+  "reasoning_tokens": null,
+  "html_bytes": 13711,
+  "route": "proxy",
+  "cost": 1.6829,
+  "price": {
+   "in": 10.0,
+   "out": 50.0,
+   "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+  }
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "ok": true,
+  "effort": "high",
+  "seconds": 466.0,
+  "finish": "stop",
+  "prompt_tokens": 222,
+  "out_tokens": 61651,
+  "total_tokens": 61873,
+  "reasoning_tokens": null,
+  "html_bytes": 19032,
+  "route": "proxy",
+  "cost": 0.617,
+  "price": {
+   "in": 2.0,
+   "out": 10.0,
+   "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+  }
+ },
+ {
+  "model": "claude-haiku-4-5-20251001",
+  "ok": true,
+  "effort": "high",
+  "seconds": 48.6,
+  "finish": "stop",
+  "prompt_tokens": 196,
+  "out_tokens": 6058,
+  "total_tokens": 6254,
+  "reasoning_tokens": null,
+  "html_bytes": 9899,
+  "route": "proxy",
+  "cost": 0.0305,
+  "price": {
+   "in": 1.0,
+   "out": 5.0,
+   "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+  }
+ },
+ {
+  "model": "claude-sonnet-5",
+  "ok": true,
+  "effort": "high",
+  "seconds": 413.4,
+  "finish": "stop",
+  "prompt_tokens": 220,
+  "out_tokens": 39765,
+  "total_tokens": 39985,
+  "reasoning_tokens": null,
+  "html_bytes": 14402,
+  "route": "proxy",
+  "cost": 0.3981,
+  "price": {
+   "in": 2.0,
+   "out": 10.0,
+   "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+  }
+ },
+ {
+  "model": "claude-opus-5",
+  "ok": true,
+  "effort": "high",
+  "seconds": 829.0,
+  "finish": "stop",
+  "prompt_tokens": 220,
+  "out_tokens": 68338,
+  "total_tokens": 68558,
+  "reasoning_tokens": null,
+  "html_bytes": 31046,
+  "route": "proxy",
+  "cost": 1.7095,
+  "price": {
+   "in": 5.0,
+   "out": 25.0,
+   "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+  }
+ },
+ {
+  "model": "claude-opus-4-8",
+  "ok": true,
+  "effort": "high",
+  "seconds": 52.1,
+  "finish": "stop",
+  "prompt_tokens": 220,
+  "out_tokens": 4472,
+  "total_tokens": 4692,
+  "reasoning_tokens": null,
+  "html_bytes": 7376,
+  "route": "proxy",
+  "cost": 0.1129,
+  "price": {
+   "in": 5.0,
+   "out": 25.0,
+   "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+  }
+ },
+ {
+  "model": "gpt-6.1-sol",
+  "ok": true,
+  "effort": "high",
+  "seconds": 346.5,
+  "finish": "stop",
+  "prompt_tokens": 367,
+  "out_tokens": 7154,
+  "total_tokens": 7521,
+  "reasoning_tokens": 2070,
+  "html_bytes": 15085,
+  "route": "proxy",
+  "cost": 0.0723,
+  "price": {
+   "in": 2.0,
+   "out": 10.0,
+   "source": "https://developers.openai.com/api/docs/pricing"
+  }
+ },
+ {
+  "model": "gpt-6-sol",
+  "ok": true,
+  "effort": "high",
+  "seconds": 293.8,
+  "finish": "stop",
+  "prompt_tokens": 367,
+  "out_tokens": 6052,
+  "total_tokens": 6419,
+  "reasoning_tokens": 1991,
+  "html_bytes": 12421,
+  "route": "proxy",
+  "cost": 0.0613,
+  "price": {
+   "in": 2.0,
+   "out": 10.0,
+   "source": "https://developers.openai.com/api/docs/pricing"
+  }
+ },
+ {
+  "model": "gpt-6-astra",
+  "ok": true,
+  "effort": "high",
+  "seconds": 202.1,
+  "finish": "stop",
+  "prompt_tokens": 367,
+  "out_tokens": 6643,
+  "total_tokens": 7010,
+  "reasoning_tokens": 1034,
+  "html_bytes": 17546,
+  "route": "proxy",
+  "cost": 0.3358,
+  "price": {
+   "in": 10.0,
+   "out": 50.0,
+   "source": "https://developers.openai.com/api/docs/pricing"
+  }
+ },
+ {
+  "model": "gpt-6-luna",
+  "ok": true,
+  "effort": "high",
+  "seconds": 82.2,
+  "finish": "stop",
+  "prompt_tokens": 367,
+  "out_tokens": 3866,
+  "total_tokens": 4233,
+  "reasoning_tokens": 1158,
+  "html_bytes": 7559,
+  "route": "proxy",
+  "cost": 0.002,
+  "price": {
+   "in": 0.1,
+   "out": 0.5,
+   "source": "https://developers.openai.com/api/docs/pricing"
+  }
+ },
+ {
+  "model": "gpt-5.6-sol",
+  "ok": true,
+  "effort": "high",
+  "seconds": 720.1,
+  "finish": "stop",
+  "prompt_tokens": 367,
+  "out_tokens": 14932,
+  "total_tokens": 15299,
+  "reasoning_tokens": 6133,
+  "html_bytes": 30255,
+  "route": "proxy",
+  "cost": 0.3001,
+  "price": {
+   "in": 4.0,
+   "out": 20.0,
+   "source": "https://developers.openai.com/api/docs/pricing",
+   "note": "promo price through 2026-11-21"
+  }
+ },
+ {
+  "model": "gpt-5.6-terra",
+  "ok": true,
+  "effort": "high",
+  "seconds": 131.7,
+  "finish": "stop",
+  "prompt_tokens": 367,
+  "out_tokens": 7189,
+  "total_tokens": 7556,
+  "reasoning_tokens": 2588,
+  "html_bytes": 14608,
+  "route": "proxy",
+  "cost": 0.087,
+  "price": {
+   "in": 2.0,
+   "out": 12.0,
+   "source": "https://developers.openai.com/api/docs/pricing"
+  }
+ },
+ {
+  "model": "gpt-5.6-luna",
+  "ok": true,
+  "effort": "high",
+  "seconds": 206.0,
+  "finish": "stop",
+  "prompt_tokens": 367,
+  "out_tokens": 11290,
+  "total_tokens": 11657,
+  "reasoning_tokens": 5001,
+  "html_bytes": 20605,
+  "route": "proxy",
+  "cost": 0.0136,
+  "price": {
+   "in": 0.2,
+   "out": 1.2,
+   "source": "https://developers.openai.com/api/docs/pricing"
+  }
+ },
+ {
+  "model": "gpt-5.5",
+  "ok": true,
+  "effort": "high",
+  "seconds": 269.0,
+  "finish": "stop",
+  "prompt_tokens": 367,
+  "out_tokens": 14825,
+  "total_tokens": 15192,
+  "reasoning_tokens": 8718,
+  "html_bytes": 16386,
+  "route": "proxy",
+  "cost": 0.4466,
+  "price": {
+   "in": 5.0,
+   "out": 30.0,
+   "source": "https://developers.openai.com/api/docs/pricing"
+  }
+ },
+ {
+  "model": "gemini-3.8-flash-high",
+  "ok": true,
+  "effort": "high",
+  "seconds": 73.4,
+  "finish": "stop",
+  "prompt_tokens": 66,
+  "out_tokens": 22707,
+  "total_tokens": 22773,
+  "reasoning_tokens": 8028,
+  "html_bytes": 36672,
+  "route": "proxy",
+  "cost": 0.0852,
+  "price": {
+   "in": 0.75,
+   "out": 3.75,
+   "source": "https://ai.google.dev/gemini-api/docs/pricing",
+   "note": "$1.50/$7.50 from 2027-01-01"
+  }
+ },
+ {
+  "model": "muse-spark-1.3-high",
+  "ok": true,
+  "effort": "high",
+  "seconds": 72.8,
+  "finish": "success",
+  "prompt_tokens": 13690,
+  "out_tokens": 3718,
+  "html_bytes": 6552,
+  "route": "cursor",
+  "cost": 0.0158,
+  "price": {
+   "in": 1.25,
+   "out": 4.25,
+   "source": "https://developer.meta.com/ai/models/muse-spark/",
+   "note": "column order inferred"
+  }
+ },
+ {
+  "model": "kimi-k3-high",
+  "ok": true,
+  "effort": "high",
+  "seconds": 107.0,
+  "finish": "success",
+  "prompt_tokens": 11259,
+  "out_tokens": 11182,
+  "html_bytes": 6679,
+  "route": "cursor",
+  "cost": 0.1677,
+  "price": {
+   "in": 3.0,
+   "out": 15.0,
+   "source": "https://platform.kimi.ai/docs/pricing/chat"
+  }
+ },
+ {
+  "model": "glm-5.2-high",
+  "ok": true,
+  "effort": "high",
+  "seconds": 62.9,
+  "finish": "success",
+  "prompt_tokens": 10167,
+  "out_tokens": 2847,
+  "html_bytes": 6311,
+  "route": "cursor",
+  "cost": 0.0125,
+  "price": {
+   "in": 1.4,
+   "out": 4.4,
+   "source": "https://docs.z.ai/guides/overview/pricing"
+  }
+ }
+];
+const PROMPT = 'Can you make me an animation of a cartoonish cat being "liquid"? I.e. going into a narrow tube like liquid and coming out …';
+
+document.getElementById('prompt').textContent = PROMPT;
+document.getElementById('prompt').title = PROMPT;
+
+const kTok = n => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
+const usd = c => c == null ? '' : c < 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(3)}`;
+
+function label(r) {
+  const bits = [];
+  if (r.out_tokens != null) bits.push(`${kTok(r.out_tokens)} tok`, `${Math.round(r.seconds)}s`);
+  if (r.cost != null) bits.push(usd(r.cost));
+  return (r.ok ? r.model : `${r.model} (failed)`) + (bits.length ? ' — ' + bits.join(' · ') : '');
+}
+
+function statsHtml(r) {
+  const parts = [];
+  if (r.seconds != null) parts.push(`${r.seconds}s`);
+  if (r.out_tokens != null) parts.push(`${r.out_tokens.toLocaleString()} out tok`);
+  if (r.reasoning_tokens) parts.push(`of which ${r.reasoning_tokens.toLocaleString()} reasoning`);
+  if (r.prompt_tokens != null) parts.push(`${r.prompt_tokens.toLocaleString()} in`);
+  if (r.cost != null) parts.push(`${usd(r.cost)} at $${r.price.in}/$${r.price.out} per M` +
+    (r.route === 'cursor' ? ' (output only)' : ''));
+  if (r.route === 'cursor') parts.push('via Cursor');
+  if (r.html_bytes) parts.push(`${(r.html_bytes / 1024).toFixed(1)} KB html`);
+  if (r.finish && r.finish !== 'stop' && r.finish !== 'end_turn') parts.push(`finish: ${r.finish}`);
+  parts.push(`<a href="raw/${encodeURIComponent(r.model)}.md" target="_blank">raw reply</a>`);
+  if (r.ok) parts.push(`<a href="pages/${encodeURIComponent(r.model)}.html" target="_blank">open</a>`);
+  return parts.join(' · ');
+}
+
+function makePane(el, onChange) {
+  el.innerHTML = `
+    <div class="bar">
+      <button data-step="-1" title="Previous">‹</button>
+      <select></select>
+      <button data-step="1" title="Next">›</button>
+      <button data-reload title="Restart animation">↻ Restart</button>
+      <span class="stats"></span>
+    </div>
+    <div class="frame"></div>`;
+  const sel = el.querySelector('select');
+  const frame = el.querySelector('.frame');
+  const stats = el.querySelector('.stats');
+  RESULTS.forEach((r, i) => sel.add(new Option(label(r), i)));
+
+  function show(i) {
+    const r = RESULTS[i];
+    sel.value = i;
+    stats.innerHTML = statsHtml(r);
+    frame.innerHTML = '';
+    if (r.ok) {
+      const f = document.createElement('iframe');
+      f.sandbox = 'allow-scripts';
+      f.src = `pages/${encodeURIComponent(r.model)}.html`;
+      frame.appendChild(f);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'fail';
+      d.textContent = r.error || 'failed';
+      frame.appendChild(d);
+    }
+    onChange();
+  }
+  sel.onchange = () => show(+sel.value);
+  el.querySelectorAll('[data-step]').forEach(b => b.onclick = () =>
+    show((+sel.value + +b.dataset.step + RESULTS.length) % RESULTS.length));
+  el.querySelector('[data-reload]').onclick = () => show(+sel.value);
+  return { show, get index() { return +sel.value; } };
+}
+
+const main = document.getElementById('main');
+const splitBox = document.getElementById('split');
+const paneBEl = document.getElementById('paneB');
+
+function saveHash() {
+  const h = [A.index];
+  if (splitBox.checked) h.push(B.index);
+  history.replaceState(null, '', '#' + h.map(i => encodeURIComponent(RESULTS[i].model)).join(','));
+}
+
+const A = makePane(document.getElementById('paneA'), () => saveHash());
+const B = makePane(paneBEl, () => saveHash());
+
+function setSplit(on) {
+  splitBox.checked = on;
+  main.classList.toggle('split', on);
+  paneBEl.hidden = !on;
+  if (!on) paneBEl.querySelector('.frame').innerHTML = '';
+}
+splitBox.onchange = () => {
+  setSplit(splitBox.checked);
+  if (splitBox.checked) B.show((A.index + 1) % RESULTS.length); else saveHash();
+};
+
+const COLS = [
+  ['Model', r => r.model, r => r.model],
+  ['Route', r => r.route, r => r.route, 'l'],
+  ['Time', r => r.seconds, r => r.seconds != null ? `${Math.round(r.seconds)} s` : ''],
+  ['Out tokens', r => r.out_tokens, r => r.out_tokens != null ? r.out_tokens.toLocaleString() : ''],
+  ['of which reasoning', r => r.reasoning_tokens, r => r.reasoning_tokens ? r.reasoning_tokens.toLocaleString() : ''],
+  ['Tok/s', r => r.out_tokens && r.seconds ? r.out_tokens / r.seconds : null,
+    r => r.out_tokens && r.seconds ? Math.round(r.out_tokens / r.seconds) : ''],
+  ['API price', r => r.cost, r => usd(r.cost)],
+  ['HTML', r => r.html_bytes, r => r.html_bytes ? `${(r.html_bytes / 1024).toFixed(1)} KB` : ''],
+];
+let sortCol = 6, sortDir = 1;
+const tableEl = document.getElementById('table');
+const tableBox = document.getElementById('tableBox');
+
+function renderTable() {
+  const rows = RESULTS.map((r, i) => i).sort((a, b) => {
+    const va = COLS[sortCol][1](RESULTS[a]), vb = COLS[sortCol][1](RESULTS[b]);
+    if (va == null) return 1; if (vb == null) return -1;
+    return (va < vb ? -1 : va > vb ? 1 : 0) * sortDir;
+  });
+  tableEl.innerHTML = `<table><thead><tr>${COLS.map((c, i) =>
+    `<th data-c="${i}" class="${c[3] || ''}${i === sortCol ? ' sorted' : ''}">${c[0]}${i === sortCol ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(i => `<tr data-i="${i}">${COLS.map(c =>
+      `<td class="${c[3] || ''}">${c[2](RESULTS[i])}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <p class="note">Reasoning effort high, no output cap. API price = list price × tokens (reasoning billed as output);
+    Cursor-routed models count output only, since their input is mostly Cursor's agent prompt.
+    Tok/s includes queueing and thinking time. Click a row to open it.</p>`;
+  tableEl.querySelectorAll('th').forEach(th => th.onclick = () => {
+    const c = +th.dataset.c;
+    sortDir = c === sortCol ? -sortDir : 1; sortCol = c; renderTable();
+  });
+  tableEl.querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => {
+    setTable(false); A.show(+tr.dataset.i);
+  });
+}
+function setTable(on) {
+  tableBox.checked = on;
+  tableEl.hidden = !on;
+  main.hidden = on;
+  if (on) renderTable();
+}
+tableBox.onchange = () => setTable(tableBox.checked);
+
+const find = name => Math.max(0, RESULTS.findIndex(r => r.model === decodeURIComponent(name)));
+const want = location.hash.slice(1).split(',').filter(Boolean);
+A.show(want[0] ? find(want[0]) : 0);
+if (want[1]) { setSplit(true); B.show(find(want[1])); }
+</script>
+</body>
+</html>

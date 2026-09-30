@@ -1,0 +1,753 @@
+Absolutely — here’s a self-contained HTML/SVG animation. Save it as `liquid-cat.html` and open it in a browser.
+
+It uses only SVG, CSS, and JavaScript—no canvas, libraries, or external assets.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Liquid Cat</title>
+
+  <style>
+    :root {
+      --ink: #24334b;
+      --muted: #71839d;
+      --blue: #9bd8f5;
+      --blue-dark: #568db7;
+      --cream: #fff3cf;
+      --orange: #efa04c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 20% 15%, #ffffff 0 3%, transparent 4%),
+        linear-gradient(135deg, #eaf7ff, #fff8ef);
+      color: var(--ink);
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system,
+        BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .card {
+      width: min(1060px, 100%);
+      overflow: hidden;
+      border: 1px solid rgba(92, 135, 170, 0.2);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.76);
+      box-shadow:
+        0 24px 80px rgba(64, 101, 133, 0.18),
+        0 4px 18px rgba(64, 101, 133, 0.08);
+      backdrop-filter: blur(12px);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 22px 28px 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3vw, 2.2rem);
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 13px;
+      border-radius: 999px;
+      color: #487191;
+      background: #edf9ff;
+      border: 1px solid #c5e9fb;
+      font-size: 0.78rem;
+      font-weight: 750;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #5cc4e9;
+      box-shadow: 0 0 0 5px rgba(92, 196, 233, 0.15);
+      animation: pulse 1.2s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      50% {
+        transform: scale(0.72);
+        opacity: 0.55;
+      }
+    }
+
+    .scene-wrap {
+      padding: 4px 18px 0;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 28px 25px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 17px;
+      color: white;
+      background: #477ea4;
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 750;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(71, 126, 164, 0.22);
+      transition:
+        transform 0.15s ease,
+        background 0.15s ease;
+    }
+
+    button:hover {
+      background: #396c91;
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button.secondary {
+      color: #477ea4;
+      background: #eaf7fd;
+      box-shadow: none;
+    }
+
+    button.secondary:hover {
+      background: #d9f0fb;
+    }
+
+    .hint {
+      margin: 0;
+      text-align: center;
+      color: #8292a8;
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 650px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .status {
+        align-self: flex-start;
+      }
+
+      .scene-wrap {
+        padding-inline: 6px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="card">
+    <header>
+      <div>
+        <h1>Liquid Cat</h1>
+        <p class="subtitle">Some cats obey physics. This one negotiates.</p>
+      </div>
+
+      <div class="status">
+        <span class="status-dot"></span>
+        <span id="statusText">Stretching</span>
+      </div>
+    </header>
+
+    <div class="scene-wrap">
+      <svg
+        id="scene"
+        viewBox="0 0 1000 420"
+        role="img"
+        aria-label="A cartoon cat liquefies into a narrow tube and reforms on the other side"
+      >
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f9fdff" />
+            <stop offset="1" stop-color="#e7f5fb" />
+          </linearGradient>
+
+          <linearGradient id="tubeGlass" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.78" />
+            <stop offset="0.48" stop-color="#b9e8fb" stop-opacity="0.28" />
+            <stop offset="1" stop-color="#84c3e3" stop-opacity="0.34" />
+          </linearGradient>
+
+          <linearGradient id="tubeInside" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#172944" />
+            <stop offset="0.52" stop-color="#274366" />
+            <stop offset="1" stop-color="#14243d" />
+          </linearGradient>
+
+          <linearGradient id="fur" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ffd98b" />
+            <stop offset="0.46" stop-color="#f3ad55" />
+            <stop offset="1" stop-color="#d87d3e" />
+          </linearGradient>
+
+          <linearGradient id="furLight" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fff8df" />
+            <stop offset="1" stop-color="#f7d795" />
+          </linearGradient>
+
+          <linearGradient id="liquidFur" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ffe8a9" />
+            <stop offset="0.5" stop-color="#f5b865" />
+            <stop offset="1" stop-color="#dd8444" />
+          </linearGradient>
+
+          <filter id="shadow" x="-30%" y="-50%" width="160%" height="220%">
+            <feGaussianBlur stdDeviation="8" />
+          </filter>
+
+          <filter id="softShadow" x="-30%" y="-50%" width="160%" height="220%">
+            <feGaussianBlur stdDeviation="4" />
+          </filter>
+
+          <!-- Reusable cartoon cat -->
+          <g id="catArt" stroke="#8d573c" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+            <!-- tail -->
+            <path
+              d="M136 231
+                 C177 238 199 207 187 174
+                 C180 154 158 150 151 168
+                 C147 178 155 187 165 184"
+              fill="none"
+              stroke="#d98542"
+              stroke-width="18"
+            />
+
+            <path
+              d="M136 231
+                 C177 238 199 207 187 174
+                 C180 154 158 150 151 168
+                 C147 178 155 187 165 184"
+              fill="none"
+              stroke="#f4b967"
+              stroke-width="9"
+            />
+
+            <!-- body -->
+            <path
+              d="M50 161
+                 C40 188 42 239 49 278
+                 C54 303 73 315 101 314
+                 C130 314 147 297 149 271
+                 L148 191
+                 C136 168 112 155 84 155
+                 C70 155 58 157 50 161Z"
+              fill="url(#fur)"
+            />
+
+            <!-- belly -->
+            <path
+              d="M76 184
+                 C65 213 67 258 77 280
+                 C83 294 98 299 111 290
+                 C122 282 124 260 121 228
+                 C119 201 104 183 90 180Z"
+              fill="url(#furLight)"
+              stroke="none"
+            />
+
+            <!-- back legs -->
+            <path d="M57 263 L55 319 Q55 329 67 329 Q79 329 79 318 L80 278" fill="url(#fur)" />
+            <path d="M112 274 L116 319 Q116 329 128 329 Q140 329 138 317 L133 267" fill="url(#fur)" />
+
+            <!-- head and ears -->
+            <path
+              d="M24 139
+                 L31 57
+                 L73 89
+                 C90 81 111 81 130 89
+                 L171 57
+                 L180 139
+                 C183 171 155 190 101 190
+                 C49 190 20 170 24 139Z"
+              fill="url(#fur)"
+            />
+
+            <!-- inner ears -->
+            <path d="M39 76 L42 121 L65 96Z" fill="#efa1a2" stroke="none" />
+            <path d="M160 76 L157 121 L135 96Z" fill="#efa1a2" stroke="none" />
+
+            <!-- muzzle -->
+            <ellipse cx="77" cy="145" rx="24" ry="19" fill="#fff1cf" stroke="none" />
+            <ellipse cx="125" cy="145" rx="24" ry="19" fill="#fff1cf" stroke="none" />
+
+            <!-- eyes -->
+            <ellipse cx="69" cy="124" rx="8" ry="12" fill="#26354a" stroke="none" />
+            <ellipse cx="132" cy="124" rx="8" ry="12" fill="#26354a" stroke="none" />
+
+            <circle cx="72" cy="120" r="2.8" fill="#ffffff" stroke="none" />
+            <circle cx="135" cy="120" r="2.8" fill="#ffffff" stroke="none" />
+
+            <!-- nose and mouth -->
+            <path d="M94 145 Q101 139 108 145 Q101 153 94 145Z" fill="#d97078" />
+            <path d="M101 151 Q99 162 89 164 M101 151 Q103 162 113 164" fill="none" />
+
+            <!-- whiskers -->
+            <path d="M72 151 L28 145 M72 158 L27 165 M130 151 L176 145 M130 158 L178 165" fill="none" />
+
+            <!-- chest tuft -->
+            <path
+              d="M83 177 L101 194 L119 177
+                 L123 204 L102 221 L79 204Z"
+              fill="#fff0c9"
+              stroke="none"
+            />
+
+            <!-- toe lines -->
+            <path d="M58 314 L58 322 M68 314 L68 322 M119 314 L120 322 M129 312 L130 320" fill="none" />
+          </g>
+
+          <!-- Small cat-like liquid blob -->
+          <g id="liquidArt">
+            <path
+              d="M-61 5
+                 C-66 -12 -58 -28 -42 -36
+                 L-28 -17
+                 C-11 -26 12 -26 30 -17
+                 L44 -36
+                 C59 -26 66 -10 60 7
+                 C53 29 30 35 6 27
+                 C-18 38 -51 30 -61 5Z"
+              fill="url(#liquidFur)"
+              stroke="#9b6140"
+              stroke-width="4"
+              stroke-linejoin="round"
+            />
+
+            <path
+              d="M-35 -16 C-18 -25 15 -25 33 -14"
+              fill="none"
+              stroke="#ffeab4"
+              stroke-width="7"
+              stroke-linecap="round"
+              opacity="0.75"
+            />
+
+            <ellipse cx="-20" cy="1" rx="6" ry="9" fill="#26354a" />
+            <ellipse cx="22" cy="1" rx="6" ry="9" fill="#26354a" />
+            <circle cx="-18" cy="-2" r="2.1" fill="#fff" stroke="none" />
+            <circle cx="24" cy="-2" r="2.1" fill="#fff" stroke="none" />
+
+            <path d="M-5 13 Q0 9 5 13 Q0 19 -5 13Z" fill="#d97078" stroke="none" />
+          </g>
+        </defs>
+
+        <!-- Background -->
+        <rect x="0" y="0" width="1000" height="420" rx="24" fill="url(#sky)" />
+
+        <!-- Decorative background dots -->
+        <g fill="#b5ddec" opacity="0.45">
+          <circle cx="90" cy="75" r="5" />
+          <circle cx="125" cy="48" r="3" />
+          <circle cx="870" cy="70" r="5" />
+          <circle cx="910" cy="105" r="3" />
+          <circle cx="230" cy="75" r="3" />
+          <circle cx="765" cy="52" r="3" />
+        </g>
+
+        <!-- Ground -->
+        <path
+          d="M30 344 Q250 334 500 344 T970 344"
+          fill="none"
+          stroke="#b8d7e4"
+          stroke-width="4"
+          stroke-linecap="round"
+        />
+
+        <ellipse id="leftShadow" cx="125" cy="337" rx="91" ry="13" fill="#8fb3c1" opacity="0.25" filter="url(#softShadow)" />
+        <ellipse id="rightShadow" cx="840" cy="337" rx="91" ry="13" fill="#8fb3c1" opacity="0.25" filter="url(#softShadow)" />
+
+        <!-- Tube shadow -->
+        <ellipse
+          cx="500"
+          cy="296"
+          rx="239"
+          ry="25"
+          fill="#6f9db7"
+          opacity="0.24"
+          filter="url(#shadow)"
+        />
+
+        <!-- Outer tube -->
+        <rect
+          x="280"
+          y="135"
+          width="440"
+          height="150"
+          rx="75"
+          fill="url(#tubeGlass)"
+          stroke="#78a8c7"
+          stroke-width="5"
+        />
+
+        <!-- Tube interior -->
+        <rect
+          x="300"
+          y="168"
+          width="400"
+          height="84"
+          rx="42"
+          fill="url(#tubeInside)"
+          stroke="#315b7c"
+          stroke-width="4"
+        />
+
+        <!-- Tube end rims -->
+        <ellipse
+          cx="300"
+          cy="210"
+          rx="20"
+          ry="68"
+          fill="none"
+          stroke="#8dc1dc"
+          stroke-width="5"
+          opacity="0.8"
+        />
+
+        <ellipse
+          cx="700"
+          cy="210"
+          rx="20"
+          ry="68"
+          fill="none"
+          stroke="#8dc1dc"
+          stroke-width="5"
+          opacity="0.8"
+        />
+
+        <!-- Flow trail -->
+        <path
+          id="flowTrail"
+          d="M315 210 C390 210 500 210 650 210"
+          fill="none"
+          stroke="#e6a45d"
+          stroke-width="18"
+          stroke-linecap="round"
+          opacity="0"
+        />
+
+        <!-- Floating liquid bubbles -->
+        <g id="bubbles" fill="#b6eaff">
+          <circle id="bubble1" cx="370" cy="205" r="5" opacity="0" />
+          <circle id="bubble2" cx="465" cy="225" r="3.5" opacity="0" />
+          <circle id="bubble3" cx="580" cy="194" r="4" opacity="0" />
+          <circle id="bubble4" cx="635" cy="226" r="2.8" opacity="0" />
+        </g>
+
+        <!-- Moving liquid cat -->
+        <g id="liquidCat" opacity="0">
+          <use href="#liquidArt" />
+        </g>
+
+        <!-- Glass highlights -->
+        <path
+          d="M320 158
+             C400 143 590 143 681 158"
+          fill="none"
+          stroke="#ffffff"
+          stroke-width="8"
+          stroke-linecap="round"
+          opacity="0.62"
+        />
+
+        <path
+          d="M336 273 C445 286 570 286 666 273"
+          fill="none"
+          stroke="#ffffff"
+          stroke-width="4"
+          stroke-linecap="round"
+          opacity="0.3"
+        />
+
+        <!-- Cat entering -->
+        <g id="startCat">
+          <use href="#catArt" />
+        </g>
+
+        <!-- Cat re-forming -->
+        <g id="endCat" opacity="0">
+          <use href="#catArt" />
+        </g>
+
+        <!-- Small labels -->
+        <g
+          fill="#62839b"
+          font-family="Inter, system-ui, sans-serif"
+          font-size="13"
+          font-weight="800"
+          letter-spacing="2"
+        >
+          <text x="303" y="116">NARROW TUBE</text>
+          <text x="694" y="116" text-anchor="end">TOTALLY NORMAL</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="controls">
+      <button id="toggleButton">Pause</button>
+      <button id="replayButton" class="secondary">Replay</button>
+    </div>
+
+    <p class="hint">Watch closely when the whiskers reach the tube.</p>
+  </main>
+
+  <script>
+    const startCat = document.getElementById("startCat");
+    const endCat = document.getElementById("endCat");
+    const liquidCat = document.getElementById("liquidCat");
+    const flowTrail = document.getElementById("flowTrail");
+
+    const bubbleEls = [
+      document.getElementById("bubble1"),
+      document.getElementById("bubble2"),
+      document.getElementById("bubble3"),
+      document.getElementById("bubble4")
+    ];
+
+    const statusText = document.getElementById("statusText");
+    const toggleButton = document.getElementById("toggleButton");
+    const replayButton = document.getElementById("replayButton");
+
+    const DURATION = 9000;
+
+    let elapsed = 0;
+    let lastTime = performance.now();
+    let playing = true;
+
+    function clamp(value, min = 0, max = 1) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function smooth(value) {
+      value = clamp(value);
+      return value * value * (3 - 2 * value);
+    }
+
+    function transform(element, x, y, scaleX, scaleY) {
+      element.setAttribute(
+        "transform",
+        `translate(${x} ${y}) scale(${scaleX} ${scaleY})`
+      );
+    }
+
+    function setOpacity(element, opacity) {
+      element.setAttribute("opacity", clamp(opacity));
+    }
+
+    function updateScene(time) {
+      const p = (time % DURATION) / DURATION;
+
+      /*
+        Timeline:
+
+        0.00 - 0.15  cat waits and wiggles
+        0.15 - 0.31  cat squishes into the tube
+        0.27 - 0.68  liquid cat flows inside
+        0.68 - 0.83  liquid cat exits
+        0.72 - 0.90  cat reforms
+      */
+
+      // Status text
+      if (p < 0.15) {
+        statusText.textContent = "Stretching";
+      } else if (p < 0.31) {
+        statusText.textContent = "Squishing in";
+      } else if (p < 0.68) {
+        statusText.textContent = "Flowing";
+      } else if (p < 0.84) {
+        statusText.textContent = "Popping out";
+      } else {
+        statusText.textContent = "All dry";
+      }
+
+      // Left cat
+      if (p < 0.15) {
+        const wiggle = Math.sin(p / 0.15 * Math.PI * 4) * 1.5;
+        transform(startCat, 35 + wiggle, 0, 1, 1);
+        setOpacity(startCat, 1);
+      } else if (p < 0.31) {
+        const t = smooth((p - 0.15) / 0.16);
+        const x = 35 + 220 * t;
+        const scaleX = 1 - 0.72 * t;
+        const scaleY = 1 + 0.22 * t;
+        const y = 1 + Math.sin(t * Math.PI) * 4;
+
+        transform(startCat, x, y, scaleX, scaleY);
+        setOpacity(startCat, 1 - Math.max(0, (t - 0.68) / 0.32));
+      } else {
+        setOpacity(startCat, 0);
+      }
+
+      // Liquid cat
+      if (p >= 0.27 && p <= 0.84) {
+        let x;
+        let scaleX;
+        let scaleY;
+        let opacity = 1;
+
+        if (p < 0.68) {
+          const t = smooth((p - 0.27) / 0.41);
+          x = 315 + 385 * t;
+          scaleX = 0.85 + Math.sin(t * Math.PI) * 0.2;
+          scaleY = 0.72 + Math.sin(t * Math.PI) * 0.13;
+        } else {
+          const t = smooth((p - 0.68) / 0.16);
+          x = 700 + 82 * t;
+          scaleX = 1.0 + 0.58 * t;
+          scaleY = 0.82 + 0.35 * t;
+          opacity = 1 - t * 0.75;
+        }
+
+        transform(liquidCat, x, 210, scaleX, scaleY);
+        setOpacity(liquidCat, opacity);
+
+        const trailEnd = Math.max(315, x - 35);
+        flowTrail.setAttribute(
+          "d",
+          `M315 210 C390 210 485 210 ${trailEnd} 210`
+        );
+        flowTrail.setAttribute("opacity", p < 0.84 ? 0.72 : 0);
+      } else {
+        setOpacity(liquidCat, 0);
+        flowTrail.setAttribute("opacity", 0);
+      }
+
+      // Re-forming cat on the right
+      if (p < 0.72) {
+        setOpacity(endCat, 0);
+      } else if (p < 0.9) {
+        const t = smooth((p - 0.72) / 0.18);
+        const x = 710 + 45 * t;
+        const scaleX = 0.28 + 0.72 * t;
+        const scaleY = 0.86 + 0.14 * t;
+        const y = 3 - Math.sin(t * Math.PI) * 5;
+
+        transform(endCat, x, y, scaleX, scaleY);
+        setOpacity(endCat, t);
+      } else {
+        const bob = Math.sin((p - 0.9) * 20) * 1.2;
+        transform(endCat, 755, bob, 1, 1);
+        setOpacity(endCat, 1);
+      }
+
+      // Bubbles drifting through the tube
+      const bubbleTime = time / 1000;
+
+      const bubbles = [
+        {
+          element: bubbleEls[0],
+          x: 325 + ((bubbleTime * 52 + 18) % 355),
+          y: 201 + Math.sin(bubbleTime * 2.1) * 18,
+          opacity: 0.6
+        },
+        {
+          element: bubbleEls[1],
+          x: 330 + ((bubbleTime * 35 + 138) % 350),
+          y: 224 + Math.sin(bubbleTime * 1.7 + 1) * 13,
+          opacity: 0.5
+        },
+        {
+          element: bubbleEls[2],
+          x: 330 + ((bubbleTime * 67 + 255) % 350),
+          y: 194 + Math.sin(bubbleTime * 1.4 + 2) * 15,
+          opacity: 0.55
+        },
+        {
+          element: bubbleEls[3],
+          x: 330 + ((bubbleTime * 44 + 310) % 350),
+          y: 230 + Math.sin(bubbleTime * 2.4 + 3) * 10,
+          opacity: 0.45
+        }
+      ];
+
+      const bubbleVisibility =
+        p >= 0.27 && p <= 0.72
+          ? 1
+          : p > 0.72 && p < 0.84
+            ? 1 - smooth((p - 0.72) / 0.12)
+            : 0;
+
+      bubbles.forEach((bubble) => {
+        bubble.element.setAttribute("cx", bubble.x);
+        bubble.element.setAttribute("cy", bubble.y);
+        bubble.element.setAttribute(
+          "opacity",
+          bubble.opacity * bubbleVisibility
+        );
+      });
+    }
+
+    function animationFrame(now) {
+      if (playing) {
+        elapsed += now - lastTime;
+      }
+
+      lastTime = now;
+      updateScene(elapsed);
+      requestAnimationFrame(animationFrame);
+    }
+
+    toggleButton.addEventListener("click", () => {
+      playing = !playing;
+      toggleButton.textContent = playing ? "Pause" : "Play";
+      lastTime = performance.now();
+    });
+
+    replayButton.addEventListener("click", () => {
+      elapsed = 0;
+      playing = true;
+      toggleButton.textContent = "Pause";
+      lastTime = performance.now();
+      updateScene(0);
+    });
+
+    updateScene(0);
+    requestAnimationFrame(animationFrame);
+  </script>
+</body>
+</html>
+```

@@ -1,0 +1,404 @@
+Save this as `liquid-cat.html` and open it in a browser. It’s a self-contained SVG animation with pause and replay controls—no libraries or renderer required.
+
+```html
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquid Cat</title>
+<style>
+  :root {
+    color-scheme: light;
+    font-family: ui-rounded, "Trebuchet MS", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    margin: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: #e8eef0;
+    color: #34434a;
+  }
+
+  .card {
+    width: min(1100px, 100%);
+    overflow: hidden;
+    border-radius: 28px;
+    background: #fcfaf4;
+    box-shadow: 0 22px 65px #34434a22;
+  }
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 25px 24px;
+  }
+
+  button {
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 17px;
+    background: #344b52;
+    color: white;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  button:hover { background: #496872; }
+  button:focus-visible { outline: 3px solid #e5a45f; outline-offset: 3px; }
+
+  .progress {
+    flex: 1;
+    height: 8px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: #e3e9e7;
+  }
+
+  .progress > div {
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: #eaa15d;
+  }
+
+  #status {
+    min-width: 68px;
+    text-align: right;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .07em;
+    color: #77898b;
+  }
+
+  @media (max-width: 500px) {
+    .controls { padding: 0 14px 16px; gap: 8px; }
+    button { padding: 9px 12px; font-size: 13px; }
+    #status { display: none; }
+  }
+</style>
+</head>
+<body>
+<main class="card">
+  <svg viewBox="0 0 1100 490" role="img"
+       aria-label="A cartoon cat squishes into a narrow glass tube, flows through it like liquid, and pops out the other side.">
+    <defs>
+      <linearGradient id="glass" x2="0" y2="1">
+        <stop stop-color="#ffffff" stop-opacity=".85"/>
+        <stop offset=".48" stop-color="#d9f0f0" stop-opacity=".35"/>
+        <stop offset="1" stop-color="#9fced0" stop-opacity=".55"/>
+      </linearGradient>
+
+      <linearGradient id="catLiquid" x2="0" y2="1">
+        <stop stop-color="#ffd18a"/>
+        <stop offset=".55" stop-color="#f3aa60"/>
+        <stop offset="1" stop-color="#dc844d"/>
+      </linearGradient>
+
+      <clipPath id="tubeClip">
+        <rect x="337" y="300" width="446" height="63" rx="30"/>
+      </clipPath>
+
+      <!-- Cat coordinates are relative to its belly, at (0, 0). -->
+      <g id="catArt" stroke="#92563e" stroke-width="3"
+         stroke-linecap="round" stroke-linejoin="round">
+        <!-- Curly tail -->
+        <path d="M-50,-15 C-87,-58 -120,-43 -115,-9
+                 C-112,11 -91,14 -94,-5"
+              fill="none" stroke="#92563e" stroke-width="18"/>
+        <path d="M-50,-15 C-87,-58 -120,-43 -115,-9
+                 C-112,11 -91,14 -94,-5"
+              fill="none" stroke="#eda05a" stroke-width="13"/>
+
+        <!-- Back paws and body -->
+        <ellipse cx="-37" cy="43" rx="19" ry="13" fill="#e99a55"/>
+        <ellipse cx="25" cy="45" rx="18" ry="13" fill="#e99a55"/>
+        <ellipse cx="-8" cy="-2" rx="63" ry="45" fill="#efa75e"/>
+
+        <!-- Belly and stripes -->
+        <ellipse cx="5" cy="12" rx="28" ry="23"
+                 fill="#ffdfac" stroke="none"/>
+        <path d="M-44,-33 q10,13 3,22 M-25,-43 q10,13 4,21
+                 M-60,-7 q12,1 15,11"
+              fill="none" stroke="#d58550" stroke-width="5"/>
+
+        <!-- Front paws -->
+        <path d="M23,23 q-2,17 0,29 q14,9 25,0 l1,-21"
+              fill="#f2ab65"/>
+        <path d="M46,24 q-1,19 2,29 q13,8 23,-1 l-5,-26"
+              fill="#f2ab65"/>
+        <path d="M31,53 v-6 M56,53 v-6"
+              fill="none" stroke="#d58550" stroke-width="2"/>
+
+        <!-- Ears, behind the head -->
+        <path d="M13,-70 L15,-112 Q17,-118 24,-110 L42,-88 Z"
+              fill="#efa75e"/>
+        <path d="M54,-88 L76,-111 Q82,-117 83,-105 L80,-62 Z"
+              fill="#efa75e"/>
+        <path d="M20,-100 L23,-77 L35,-87 Z M65,-87 L77,-100 L76,-77 Z"
+              fill="#ed9c9a" stroke="none"/>
+
+        <!-- Head -->
+        <ellipse cx="48" cy="-62" rx="37" ry="34" fill="#f5b36e"/>
+        <path d="M27,-88 l5,9 M48,-95 l-1,11 M68,-87 l-5,9"
+              fill="none" stroke="#d58550" stroke-width="4"/>
+
+        <!-- Face -->
+        <ellipse cx="36" cy="-66" rx="3.7" ry="5.5"
+                 fill="#34434a" stroke="none"/>
+        <ellipse cx="62" cy="-66" rx="3.7" ry="5.5"
+                 fill="#34434a" stroke="none"/>
+        <path d="M44,-52 Q49,-47 54,-52 Z"
+              fill="#ce777e" stroke="none"/>
+        <path d="M49,-48 q-7,10 -14,3 M49,-48 q7,10 14,3"
+              fill="none" stroke="#92563e" stroke-width="2"/>
+        <path d="M29,-48 l-22,-5 M29,-43 l-22,2
+                 M68,-48 l20,-5 M68,-43 l21,2"
+              fill="none" stroke="#92563e" stroke-width="1.8"/>
+
+        <!-- Collar -->
+        <path d="M24,-35 Q48,-20 73,-37"
+              fill="none" stroke="#547d84" stroke-width="6"/>
+        <circle cx="51" cy="-24" r="5" fill="#f5d477" stroke="#b98e4c"
+                stroke-width="1.5"/>
+      </g>
+    </defs>
+
+    <!-- Background and lettering -->
+    <rect width="1100" height="490" fill="#fcfaf4"/>
+    <circle cx="103" cy="104" r="64" fill="#f4e8cf" opacity=".5"/>
+    <circle cx="1002" cy="96" r="83" fill="#e7f1ef" opacity=".7"/>
+
+    <text x="550" y="87" text-anchor="middle"
+          fill="#344b52" font-size="36" font-weight="900"
+          letter-spacing="2">IF IT FITS, IT FLOWS</text>
+    <text x="550" y="116" text-anchor="middle"
+          fill="#849396" font-size="15" letter-spacing="1.5">
+      A VERY SCIENTIFIC CAT EXPERIMENT
+    </text>
+
+    <!-- Work surface and tube shadow -->
+    <ellipse cx="556" cy="405" rx="467" ry="17" fill="#dce5e2"/>
+    <rect x="60" y="403" width="980" height="11" rx="5.5"
+          fill="#b3c8c6"/>
+    <rect x="60" y="412" width="980" height="9" rx="4.5"
+          fill="#d2dfdb"/>
+
+    <!-- Glass tube, behind the cat-liquid -->
+    <rect x="328" y="291" width="464" height="81" rx="39"
+          fill="url(#glass)" stroke="#8fb7ba" stroke-width="4"/>
+    <rect x="337" y="300" width="446" height="63" rx="30"
+          fill="#ecf7f4" opacity=".75"/>
+
+    <!-- Liquid stays inside the glass -->
+    <g clip-path="url(#tubeClip)">
+      <path id="flow" fill="url(#catLiquid)"/>
+      <path id="shine" fill="none" stroke="#ffe2aa"
+            stroke-width="5" stroke-linecap="round" opacity=".85"/>
+      <g id="bubbles" fill="#ffe7ba" opacity=".85">
+        <circle r="5"/>
+        <circle r="3"/>
+        <circle r="4"/>
+      </g>
+    </g>
+
+    <!-- Reflections and raised glass rims -->
+    <path d="M354,309 H765" stroke="white" stroke-width="5"
+          stroke-linecap="round" opacity=".68"/>
+    <path d="M361,356 H761" stroke="#82b6ba" stroke-width="3"
+          stroke-linecap="round" opacity=".35"/>
+    <ellipse cx="337" cy="331.5" rx="12" ry="40"
+             fill="#e5f3f0" fill-opacity=".55"
+             stroke="#8fb7ba" stroke-width="3"/>
+    <ellipse cx="783" cy="331.5" rx="12" ry="40"
+             fill="#e5f3f0" fill-opacity=".55"
+             stroke="#8fb7ba" stroke-width="3"/>
+
+    <!-- Cats and the little splash on exit -->
+    <use id="leftCat" href="#catArt"/>
+    <g id="splash" fill="#eda35d">
+      <ellipse rx="8" ry="4"/>
+      <ellipse rx="5" ry="3"/>
+      <circle r="4"/>
+    </g>
+    <use id="rightCat" href="#catArt"/>
+
+    <text x="550" y="459" text-anchor="middle"
+          fill="#8b9a99" font-size="13" font-weight="700"
+          letter-spacing="2">SOLID  →  LIQUID  →  SOLID</text>
+  </svg>
+
+  <div class="controls">
+    <button id="toggle" type="button">Pause</button>
+    <button id="replay" type="button">↺ Replay</button>
+    <div class="progress" aria-hidden="true"><div id="progressFill"></div></div>
+    <span id="status" aria-live="off">READY</span>
+  </div>
+</main>
+
+<script>
+(() => {
+  const duration = 7600;
+  const $ = id => document.getElementById(id);
+  const left = $("leftCat");
+  const right = $("rightCat");
+  const flow = $("flow");
+  const shine = $("shine");
+  const bubbles = [...$("bubbles").children];
+  const drops = [...$("splash").children];
+  const progress = $("progressFill");
+  const status = $("status");
+  const toggle = $("toggle");
+
+  const clamp = x => Math.max(0, Math.min(1, x));
+  const mix = (a, b, t) => a + (b - a) * t;
+  const ease = t => {
+    t = clamp(t);
+    return t * t * (3 - 2 * t);
+  };
+  const segment = (p, a, b) => ease((p - a) / (b - a));
+
+  let start = performance.now();
+  let elapsed = 0;
+  let paused = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (paused) toggle.textContent = "Play";
+
+  function placeCat(element, x, y, sx, sy, opacity) {
+    element.setAttribute(
+      "transform",
+      `translate(${x.toFixed(2)} ${y.toFixed(2)}) ` +
+      `scale(${sx.toFixed(3)} ${sy.toFixed(3)})`
+    );
+    element.setAttribute("opacity", clamp(opacity).toFixed(3));
+  }
+
+  function draw(p, seconds) {
+    const approach = segment(p, .09, .27);
+    const squish = segment(p, .27, .40);
+
+    const leftX = mix(mix(155, 290, approach), 338, squish);
+    const leftSX = mix(1, .10, squish);
+    const leftSY = mix(1, .53, squish);
+    const leftOpacity =
+      segment(p, .005, .06) * (1 - segment(p, .355, .405));
+
+    placeCat(
+      left, leftX,
+      335 + (1 - squish) * Math.sin(seconds * 11) * 2,
+      leftSX, leftSY, leftOpacity
+    );
+
+    // The front moves first; the back follows later.
+    const head = mix(340, 787, segment(p, .345, .70));
+    const tail = mix(337, 793, segment(p, .585, .825));
+    const width = head - tail;
+    const visible = p >= .345 && p <= .825 && width > 14;
+
+    if (visible) {
+      const top = 309 + Math.sin(seconds * 7) * 1.5;
+      const bottom = 354 + Math.sin(seconds * 7 + 1) * 1.5;
+      const tip = Math.max(tail + 8, head - 17);
+
+      flow.setAttribute("d",
+        `M ${tail} ${top}
+         L ${tip} ${top}
+         Q ${head + 8} ${top + 1} ${head} 331.5
+         Q ${head + 8} ${bottom - 1} ${tip} ${bottom}
+         L ${tail} ${bottom}
+         Q ${tail - 10} 332 ${tail} ${top} Z`
+      );
+
+      shine.setAttribute("d",
+        `M ${tail + 15} ${top + 10}
+         Q ${(tail + head) / 2} ${top + 5}
+           ${Math.max(tail + 15, head - 24)} ${top + 11}`
+      );
+
+      bubbles.forEach((bubble, i) => {
+        const x = tail + width * ((seconds * .22 + i * .31) % 1);
+        bubble.setAttribute("cx", x);
+        bubble.setAttribute("cy",
+          332 + Math.sin(seconds * 5 + i * 2.3) * 10);
+      });
+
+      flow.style.display = shine.style.display =
+        $("bubbles").style.display = "";
+    } else {
+      flow.style.display = shine.style.display =
+        $("bubbles").style.display = "none";
+    }
+
+    const reform = segment(p, .72, .885);
+    const rightX = mix(790, 932, reform);
+    const rightOpacity =
+      segment(p, .72, .78) * (1 - segment(p, .93, .99));
+
+    placeCat(
+      right, rightX,
+      335 - Math.sin(reform * Math.PI) * 5,
+      mix(.12, 1, reform),
+      mix(.55, 1, reform),
+      rightOpacity
+    );
+
+    const pop = segment(p, .72, .82);
+    const splashOpacity =
+      segment(p, .715, .75) * (1 - segment(p, .81, .9));
+    $("splash").setAttribute("opacity", splashOpacity);
+
+    drops.forEach((drop, i) => {
+      drop.setAttribute("transform",
+        `translate(${mix(793, 820 + i * 16, pop)}
+                   ${mix(333, 309 + i * 15, pop)
+                     - Math.sin(pop * Math.PI) * (12 + i * 8)})`
+      );
+    });
+
+    progress.style.width = `${(p * 100).toFixed(1)}%`;
+    status.textContent =
+      p < .28 ? "APPROACH" :
+      p < .41 ? "SQUISH!" :
+      p < .72 ? "FLOWING" :
+      p < .90 ? "POP!" : "MEOW";
+  }
+
+  function frame(now) {
+    if (!paused) elapsed = now - start;
+    const p = ((elapsed % duration) + duration) % duration / duration;
+    draw(p, elapsed / 1000);
+    requestAnimationFrame(frame);
+  }
+
+  toggle.addEventListener("click", () => {
+    paused = !paused;
+    if (!paused) start = performance.now() - elapsed;
+    toggle.textContent = paused ? "Play" : "Pause";
+  });
+
+  $("replay").addEventListener("click", () => {
+    elapsed = 0;
+    start = performance.now();
+    paused = false;
+    toggle.textContent = "Pause";
+  });
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
+```

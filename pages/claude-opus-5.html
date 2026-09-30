@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Liquid Cat</title>
+<style>
+  :root{
+    --bg:#070910; --ink:#c8d3f0; --dim:#63708f; --accent:#ffb14a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:radial-gradient(1200px 700px at 50% 0%, #131a2e 0%, #070910 70%);
+    color:var(--ink); font:14px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:18px;
+  }
+  h1{
+    margin:0; font-size:15px; letter-spacing:.34em; text-transform:uppercase;
+    color:var(--dim); font-weight:600;
+  }
+  h1 b{color:var(--accent); font-weight:700}
+  .stage{
+    position:relative; width:min(1000px, 96vw); aspect-ratio:1000/680;
+    border-radius:18px; overflow:hidden;
+    box-shadow:0 30px 80px -20px #000, 0 0 0 1px #ffffff12 inset;
+    background:#0a0d18;
+  }
+  .stage canvas{position:absolute; inset:0; width:100%; height:100%; display:block}
+  #goo{filter:url(#gooGloss); will-change:filter}
+  #goo.plain{filter:url(#gooFlat)}
+  .controls{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center}
+  button,label.tog{
+    appearance:none; border:1px solid #ffffff1f; background:#ffffff0d; color:var(--ink);
+    padding:7px 13px; border-radius:999px; font:inherit; cursor:pointer; user-select:none;
+    transition:.15s;
+  }
+  button:hover,label.tog:hover{background:#ffffff1a; border-color:#ffffff33}
+  label.tog input{margin-right:6px; vertical-align:-1px}
+  label.tog.on{background:#ffb14a22; border-color:#ffb14a66; color:#ffd9a0}
+  .speed{display:flex; align-items:center; gap:8px; color:var(--dim)}
+  input[type=range]{width:120px; accent-color:var(--accent)}
+  .hint{color:var(--dim); font-size:12px}
+  svg.defs{position:absolute; width:0; height:0}
+</style>
+</head>
+<body>
+
+<h1>Liquid <b>Cat</b></h1>
+
+<div class="stage" id="stage">
+  <canvas id="bg"></canvas>
+  <canvas id="goo"></canvas>
+  <canvas id="fg"></canvas>
+</div>
+
+<div class="controls">
+  <button id="btnPlay">⏸ Pause</button>
+  <button id="btnRestart">↺ Restart</button>
+  <button id="btnSkip">⏭ Skip phase</button>
+  <label class="tog on" id="lblGloss"><input type="checkbox" id="gloss" checked>Glossy</label>
+  <label class="tog" id="lblDebug"><input type="checkbox" id="debug">Physics view</label>
+  <div class="speed"><span>speed</span><input type="range" id="speed" min="0.2" max="1.6" step="0.05" value="1"></div>
+</div>
+<div class="hint">space = pause · R = restart · ~600 particles, position-based fluid + metaball (“goo”) SVG filter</div>
+
+<svg class="defs" aria-hidden="true">
+  <defs>
+    <filter id="gooFlat" x="-18%" y="-18%" width="136%" height="136%" color-interpolation-filters="sRGB">
+      <feGaussianBlur class="gb" in="SourceGraphic" stdDeviation="5" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 26 -11"/>
+    </filter>
+    <filter id="gooGloss" x="-18%" y="-18%" width="136%" height="136%" color-interpolation-filters="sRGB">
+      <feGaussianBlur class="gb" in="SourceGraphic" stdDeviation="5" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 26 -11" result="g"/>
+      <feGaussianBlur in="g" stdDeviation="4" result="gb"/>
+      <feSpecularLighting in="gb" surfaceScale="5" specularConstant="0.75" specularExponent="22"
+                          lighting-color="#ffffff" result="sp">
+        <fePointLight class="lite" x="300" y="90" z="190"/>
+      </feSpecularLighting>
+      <feComposite in="sp" in2="g" operator="in" result="spi"/>
+      <feComposite in="g" in2="spi" operator="arithmetic" k1="0" k2="1" k3="1" k4="0"/>
+    </filter>
+  </defs>
+</svg>
+
+<script>
+(() => {
+'use strict';
+
+/* ════════════════════════════════════════════════════════════
+   0. basics
+   ════════════════════════════════════════════════════════════ */
+const W = 1000, H = 680;
+const clamp = (v,a,b)=> v<a?a:v>b?b:v;
+const lerp  = (a,b,t)=> a+(b-a)*t;
+const smooth= t => t*t*(3-2*t);
+const easeIO= t => t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+
+const stage = document.getElementById('stage');
+const cBg = document.getElementById('bg'),
+      cGoo= document.getElementById('goo'),
+      cFg = document.getElementById('fg');
+const bctx = cBg.getContext('2d'),
+      gctx = cGoo.getContext('2d'),
+      fctx = cFg.getContext('2d');
+let viewScale = 1;
+
+function resize(){
+  const r = stage.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const w = Math.max(1, Math.round(r.width*dpr)), h = Math.max(1, Math.round(r.height*dpr));
+  for (const c of [cBg,cGoo,cFg]){ c.width = w; c.height = h; }
+  viewScale = r.width / W;
+  const s = viewScale*dpr;
+  for (const c of [bctx,gctx,fctx]) c.setTransform(s,0,0,s,0,0);
+  // the goo filter lives in CSS-pixel space -> rescale it with the view
+  document.querySelectorAll('feGaussianBlur.gb').forEach(n=>
+    n.setAttribute('stdDeviation',(5.0*viewScale).toFixed(3)));
+  document.querySelectorAll('fePointLight.lite').forEach(n=>{
+    n.setAttribute('x',(300*viewScale).toFixed(1));
+    n.setAttribute('y',(90*viewScale).toFixed(1));
+    n.setAttribute('z',(190*viewScale).toFixed(1));
+  });
+}
+addEventListener('resize', resize);
+
+/* ════════════════════════════════════════════════════════════
+   1. scene geometry  (pipe = spline centreline + radius)
+   ════════════════════════════════════════════════════════════ */
+const PIPE_CTRL = [
+  [492,226,154],[486,282,114],[478,334, 62],[470,376, 26],
+  [466,414, 15],[466,462, 15],[474,500, 15],[512,522, 15],
+  [582,537, 15],[650,551, 15],[702,566, 16]
+];
+const WALL_T = 9;               // drawn glass thickness
+const WALL_R = WALL_T/2 + 1.2;  // collision radius of the glass
+
+function crPt(p0,p1,p2,p3,t){
+  const t2=t*t,t3=t2*t;
+  const f=(a,b,c,d)=>0.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);
+  return [f(p0[0],p1[0],p2[0],p3[0]), f(p0[1],p1[1],p2[1],p3[1]), f(p0[2],p1[2],p2[2],p3[2])];
+}
+function resample(pts, per){
+  const out=[], n=pts.length;
+  for(let i=0;i<n-1;i++){
+    const a=pts[Math.max(0,i-1)],b=pts[i],c=pts[i+1],d=pts[Math.min(n-1,i+2)];
+    for(let s=0;s<per;s++) out.push(crPt(a,b,c,d,s/per));
+  }
+  out.push(pts[n-1].slice());
+  return out;
+}
+const CL = resample(PIPE_CTRL, 9);              // centreline samples [x,y,r]
+const NRM = [], TAN = [];
+for(let i=0;i<CL.length;i++){
+  const a = CL[Math.max(0,i-1)], b = CL[Math.min(CL.length-1,i+1)];
+  let tx=b[0]-a[0], ty=b[1]-a[1]; const l=Math.hypot(tx,ty)||1; tx/=l; ty/=l;
+  TAN.push([tx,ty]); NRM.push([-ty,tx]);
+}
+const iL=[],iR=[],oL=[],oR=[],wL=[],wR=[];
+for(let i=0;i<CL.length;i++){
+  const [x,y,r]=CL[i], [nx,ny]=NRM[i];
+  iL.push([x-nx*r, y-ny*r]);            iR.push([x+nx*r, y+ny*r]);
+  oL.push([x-nx*(r+WALL_T), y-ny*(r+WALL_T)]); oR.push([x+nx*(r+WALL_T), y+ny*(r+WALL_T)]);
+  wL.push([x-nx*(r+WALL_T/2), y-ny*(r+WALL_T/2)]);
+  wR.push([x+nx*(r+WALL_T/2), y+ny*(r+WALL_T/2)]);
+}
+// collision segments for both glass walls
+const SEGS=[];
+for(const poly of [wL,wR])
+  for(let i=0;i<poly.length-1;i++)
+    SEGS.push({ax:poly[i][0],ay:poly[i][1],bx:poly[i+1][0],by:poly[i+1][1],r:WALL_R});
+
+// broad-phase grid for the static glass
+const SC=48, SGX0=-200, SGY0=-200, SNX=Math.ceil((W+600)/SC), SNY=Math.ceil((H+600)/SC);
+const segBuckets = Array.from({length:SNX*SNY},()=>[]);
+for(let k=0;k<SEGS.length;k++){
+  const s=SEGS[k], pad=s.r+10;
+  const x0=Math.min(s.ax,s.bx)-pad, x1=Math.max(s.ax,s.bx)+pad;
+  const y0=Math.min(s.ay,s.by)-pad, y1=Math.max(s.ay,s.by)+pad;
+  for(let gy=Math.floor((y0-SGY0)/SC); gy<=Math.floor((y1-SGY0)/SC); gy++)
+    for(let gx=Math.floor((x0-SGX0)/SC); gx<=Math.floor((x1-SGX0)/SC); gx++)
+      if(gx>=0&&gy>=0&&gx<SNX&&gy<SNY) segBuckets[gy*SNX+gx].push(k);
+}
+
+const ledgeA = {x0:56, y0:192, x1:390, y1:220, rr:9, px:390, py:206, ang:0};
+const ledgeB = {x0:660,y0:628, x1:986,y1:656, rr:9, px:660, py:642, ang:0};
+
+function sdLedge(L,x,y){
+  let dx=x-L.px, dy=y-L.py;
+  if(L.ang){ const c=Math.cos(-L.ang), s=Math.sin(-L.ang);
+             const nx=dx*c-dy*s, ny=dx*s+dy*c; dx=nx; dy=ny; }
+  const qx=L.px+dx, qy=L.py+dy;
+  const cx=(L.x0+L.x1)/2, cy=(L.y0+L.y1)/2;
+  const hx=(L.x1-L.x0)/2-L.rr, hy=(L.y1-L.y0)/2-L.rr;
+  const ax=Math.abs(qx-cx)-hx, ay=Math.abs(qy-cy)-hy;
+  return Math.hypot(Math.max(ax,0),Math.max(ay,0)) + Math.min(Math.max(ax,ay),0) - L.rr;
+}
+function sdSeg(px,py,s){
+  const dx=s.bx-s.ax, dy=s.by-s.ay;
+  const l2=dx*dx+dy*dy||1;
+  let t=((px-s.ax)*dx+(py-s.ay)*dy)/l2; t=t<0?0:t>1?1:t;
+  return Math.hypot(px-(s.ax+dx*t), py-(s.ay+dy*t)) - s.r;
+}
+const BL=-300, BR=1300, BB=H+60;
+function sceneDist(x,y){
+  let d = sdLedge(ledgeA,x,y);
+  const b = sdLedge(ledgeB,x,y); if(b<d) d=b;
+  if(x-BL<d) d=x-BL;
+  if(BR-x<d) d=BR-x;
+  if(BB-y<d) d=BB-y;
+  const gx=Math.floor((x-SGX0)/SC), gy=Math.floor((y-SGY0)/SC);
+  if(gx>=0&&gy>=0&&gx<SNX&&gy<SNY){
+    const list=segBuckets[gy*SNX+gx];
+    for(let i=0;i<list.length;i++){ const s=sdSeg(x,y,SEGS[list[i]]); if(s<d) d=s; }
+  }
+  return d;
+}
+
+/* ════════════════════════════════════════════════════════════
+   2. the cat silhouette  -> particle rest positions
+   ════════════════════════════════════════════════════════════ */
+const CAT_SCALE = 0.62, REST = 4.6, NH = 10.5, PR = 2.6;
+const SPACING_L = REST / CAT_SCALE;
+
+function drawCatShape(c){
+  c.fillStyle='#000'; c.strokeStyle='#000'; c.lineJoin='round'; c.lineCap='round';
+  c.lineWidth=24;                                    // tail
+  c.beginPath();
+  c.moveTo(48,-18);
+  c.bezierCurveTo(104,-6, 128,-58, 110,-104);
+  c.bezierCurveTo(100,-130, 74,-136, 68,-116);
+  c.stroke();
+  c.beginPath();                                     // body
+  c.moveTo(-62,0);
+  c.bezierCurveTo(-80,-66, -62,-152, 0,-152);
+  c.bezierCurveTo(62,-152, 80,-66, 62,0);
+  c.closePath(); c.fill();
+  const el=(x,y,rx,ry)=>{c.beginPath(); c.ellipse(x,y,rx,ry,0,0,7); c.fill();};
+  el(0,-8,64,26); el(-30,-9,28,15); el(32,-9,28,15); // haunch + paws
+  el(0,-186,54,47); el(-44,-176,16,16); el(44,-176,16,16); // head + cheeks
+  c.beginPath(); c.moveTo(-50,-212); c.lineTo(-58,-262); c.lineTo(-10,-226); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo( 50,-212); c.lineTo( 58,-262); c.lineTo( 10,-226); c.closePath(); c.fill();
+}
+function sampleCat(){
+  const minX=-96,maxX=146,minY=-284,maxY=26;
+  const cw=maxX-minX, ch=maxY-minY;
+  const oc=document.createElement('canvas'); oc.width=cw; oc.height=ch;
+  const o=oc.getContext('2d'); o.translate(-minX,-minY); drawCatShape(o);
+  const D=o.getImageData(0,0,cw,ch).data;
+  const dy=SPACING_L*0.866, pts=[];
+  let row=0;
+  for(let y=minY+2; y<maxY; y+=dy, row++){
+    const off=(row&1)?SPACING_L*0.5:0;
+    for(let x=minX+off; x<maxX; x+=SPACING_L){
+      const ix=Math.round(x-minX), iy=Math.round(y-minY);
+      if(ix<0||iy<0||ix>=cw||iy>=ch) continue;
+      if(D[(iy*cw+ix)*4+3]>128) pts.push([x,y]);
+    }
+  }
+  return pts;
+}
+const REST_PTS = sampleCat();
+const N = REST_PTS.length;
+
+/* ════════════════════════════════════════════════════════════
+   3. particles
+   ════════════════════════════════════════════════════════════ */
+const POSE_A = {x:200, y:192};
+const POSE_B = {x:797, y:628};
+const P = [];
+for(let i=0;i<N;i++){
+  const [lx,ly]=REST_PTS[i];
+  P.push({ x:POSE_A.x+lx*CAT_SCALE, y:POSE_A.y+ly*CAT_SCALE, px:0,py:0, vx:0,vy:0,
+           tx:0,ty:0, lx, ly, head:false, inPipe:false, ftx:0, fty:0 });
+}
+function tagRegions(){ for(const p of P) p.head = p.ly < -155; }
+tagRegions();
+
+// neighbour grid (linked lists)
+const GX0=-500,GY0=-500, NCX=Math.ceil(2000/NH), NCY=Math.ceil(1800/NH);
+const gHead = new Int32Array(NCX*NCY), gNext = new Int32Array(N);
+function buildGrid(){
+  gHead.fill(-1);
+  for(let i=0;i<N;i++){
+    const p=P[i];
+    const cx=clamp((p.x-GX0)/NH|0,0,NCX-1), cy=clamp((p.y-GY0)/NH|0,0,NCY-1);
+    const k=cy*NCX+cx; gNext[i]=gHead[k]; gHead[k]=i;
+  }
+}
+const STIFF_R=0.72, COH=0.030;
+function relax(){
+  for(let i=0;i<N;i++){
+    const p=P[i];
+    const cx=clamp((p.x-GX0)/NH|0,0,NCX-1), cy=clamp((p.y-GY0)/NH|0,0,NCY-1);
+    for(let yy=cy-1; yy<=cy+1; yy++){
+      if(yy<0||yy>=NCY) continue;
+      for(let xx=cx-1; xx<=cx+1; xx++){
+        if(xx<0||xx>=NCX) continue;
+        let j=gHead[yy*NCX+xx];
+        while(j!==-1){
+          if(j>i){
+            const q=P[j];
+            const dx=q.x-p.x, dy=q.y-p.y, d2=dx*dx+dy*dy;
+            if(d2<NH*NH && d2>1e-5){
+              const d=Math.sqrt(d2), nx=dx/d, ny=dy/d;
+              let corr;
+              if(d<REST) corr = -(REST-d)*0.5*STIFF_R;              // incompressibility
+              else { const t=(d-REST)/(NH-REST); corr=(d-REST)*COH*(1-t); } // surface tension
+              p.x+=nx*corr; p.y+=ny*corr;
+              q.x-=nx*corr; q.y-=ny*corr;
+            }
+          }
+          j=gNext[j];
+        }
+      }
+    }
+  }
+}
+function collide(){
+  for(let i=0;i<N;i++){
+    const p=P[i];
+    const d=sceneDist(p.x,p.y);
+    if(d<PR){
+      const e=1.0;
+      let nx=sceneDist(p.x+e,p.y)-sceneDist(p.x-e,p.y);
+      let ny=sceneDist(p.x,p.y+e)-sceneDist(p.x,p.y-e);
+      const l=Math.hypot(nx,ny)||1; nx/=l; ny/=l;
+      const push=PR-d;
+      p.x+=nx*push; p.y+=ny*push;
+    }
+  }
+}
+function pipeProbe(){
+  let count=0;
+  for(let i=0;i<N;i++){
+    const p=P[i];
+    let best=1e9, bi=0;
+    for(let k=1;k<CL.length;k++){
+      const dx=p.x-CL[k][0], dy=p.y-CL[k][1], d=dx*dx+dy*dy;
+      if(d<best){best=d;bi=k;}
+    }
+    const d=Math.sqrt(best), r=CL[bi][2];
+    const inside = d < r+4 && bi>0 && bi<CL.length-1;
+    p.inPipe=inside; p.ftx=TAN[bi][0]; p.fty=TAN[bi][1];
+    if(inside) count++;
+  }
+  return count;
+}
+
+/* ════════════════════════════════════════════════════════════
+   4. phases
+   ════════════════════════════════════════════════════════════ */
+const PHASES=[
+  {n:'idle',  d:2.3},
+  {n:'melt',  d:1.5},
+  {n:'pour',  d:2.3},
+  {n:'flow',  d:9.5},
+  {n:'reform',d:2.0},
+  {n:'pose',  d:1.9},
+  {n:'exit',  d:1.2},
+  {n:'enter', d:1.3}
+];
+let phase=0, pt=0;
+let pose={x:POSE_A.x,y:POSE_A.y,sx:1,sy:1,rot:0};
+let springK=280, springD=9, grav=0, flowOn=false, faceAmt=1, inPipeCount=0;
+let ledgeTarget=0, blinkT=1.6, blink=0, eyeWide=0;
+const bubble={t:0,d:0,s:'',x:0,y:0};
+function say(s,d,x,y){ bubble.s=s; bubble.d=d; bubble.t=0; bubble.x=x; bubble.y=y; }
+
+function assignTargets(){        // coherent puddle -> cat mapping
+  const order=P.map((p,i)=>i).sort((a,b)=> P[a].x-P[b].x || P[a].y-P[b].y);
+  const rest=REST_PTS.map(r=>r).sort((a,b)=> a[0]-b[0] || a[1]-b[1]);
+  for(let k=0;k<N;k++){ P[order[k]].lx=rest[k][0]; P[order[k]].ly=rest[k][1]; }
+  tagRegions();
+}
+function enterPhase(i){
+  phase=i%PHASES.length; pt=0;
+  const n=PHASES[phase].n;
+  if(n==='melt')   say('*bloop*',1.3, POSE_A.x+10, 46);
+  if(n==='pour')   ledgeTarget=0.30;
+  if(n==='flow')   say('wheeee—',1.6, 585, 330);
+  if(n==='reform') assignTargets();
+  if(n==='pose')   say('mrrp!',1.5, POSE_B.x+16, 432);
+  if(n==='exit')   ledgeTarget=0;
+  if(n==='enter'){                  // teleport off-screen for a seamless loop
+    const dx=(POSE_A.x-430)-(POSE_B.x+430), dy=POSE_A.y-POSE_B.y;
+    for(const p of P){ p.x+=dx; p.y+=dy; }
+  }
+}
+function updatePhase(dt){
+  pt+=dt;
+  const ph=PHASES[phase];
+  let done = pt>=ph.d;
+  if(ph.n==='flow'){
+    let sp=0; for(const p of P) sp+=Math.hypot(p.vx,p.vy);
+    done = (pt>2.4 && inPipeCount<=3 && sp/N<150) || pt>=ph.d;
+  }
+  if(done) enterPhase(phase+1);
+}
+function updateParams(dt){
+  const n=PHASES[phase].n, t=pt;
+  pose.sx=1; pose.sy=1; pose.rot=0; flowOn=false; springD=9;
+  const breathe = 1+0.015*Math.sin(perf*1.9);
+  switch(n){
+    case 'idle': {
+      springK=290; grav=0; faceAmt=1;
+      pose.x=POSE_A.x; pose.y=POSE_A.y; pose.sy=breathe; pose.sx=2-breathe;
+      const k=clamp((t-(PHASES[0].d-0.5))/0.5,0,1);       // anticipation squash
+      pose.sy*=1-0.20*Math.sin(k*Math.PI); pose.sx*=1+0.15*Math.sin(k*Math.PI);
+      eyeWide=k;
+      break;
+    }
+    case 'melt': {
+      const a=clamp(t/0.55,0,1);
+      springK=290*(1-a)*(1-a); springD=6; grav=1000*clamp((t-0.1)/0.45,0,1);
+      faceAmt=1-clamp((t-0.22)/0.62,0,1); eyeWide=1;
+      pose.x=POSE_A.x; pose.y=POSE_A.y;
+      break;
+    }
+    case 'pour': case 'flow': {
+      springK=0; grav=1000; faceAmt=0; flowOn=true;
+      break;
+    }
+    case 'reform': {
+      const a=easeIO(clamp(t/1.05,0,1));
+      springK=310*a; springD=lerp(17,9,a); grav=1000*(1-clamp(t/0.65,0,1));
+      faceAmt=clamp((t-0.8)/0.5,0,1); eyeWide=0;
+      pose.x=POSE_B.x; pose.y=POSE_B.y;
+      break;
+    }
+    case 'pose': {
+      springK=310; grav=0; faceAmt=1;
+      pose.x=POSE_B.x; pose.y=POSE_B.y; pose.sy=breathe; pose.sx=2-breathe;
+      break;
+    }
+    case 'exit': {
+      const u=clamp(t/1.15,0,1);
+      springK=330; grav=0; faceAmt=1;
+      pose.x=lerp(POSE_B.x,POSE_B.x+430,u);
+      pose.y=POSE_B.y-74*Math.abs(Math.sin(u*Math.PI*2.5));
+      break;
+    }
+    case 'enter': {
+      const u=clamp(t/1.2,0,1);
+      springK=330; grav=0; faceAmt=1;
+      pose.x=lerp(POSE_A.x-430,POSE_A.x,u);
+      pose.y=POSE_A.y-74*Math.abs(Math.sin((1-u)*Math.PI*2.5));
+      break;
+    }
+  }
+  ledgeA.ang += (ledgeTarget-ledgeA.ang)*clamp(dt*2.6,0,1);
+  // targets
+  const c=Math.cos(pose.rot), s=Math.sin(pose.rot);
+  for(const p of P){
+    const lx=p.lx*pose.sx*CAT_SCALE, ly=p.ly*pose.sy*CAT_SCALE;
+    p.tx=pose.x+lx*c-ly*s; p.ty=pose.y+lx*s+ly*c;
+  }
+  // blinking
+  blinkT-=dt;
+  if(blinkT<=0){ blinkT=1.6+Math.random()*3; blink=1; }
+  blink=Math.max(0, blink-dt*7);
+}
+
+/* ════════════════════════════════════════════════════════════
+   5. integrate
+   ════════════════════════════════════════════════════════════ */
+const SUB=3, FLOW=300, VMAX=680;
+function step(h){
+  for(let i=0;i<N;i++){
+    const p=P[i];
+    if(springK>0){
+      p.vx += (p.tx-p.x)*springK*h - p.vx*springD*h;
+      p.vy += (p.ty-p.y)*springK*h - p.vy*springD*h;
+    }
+    p.vy += grav*h;
+    if(flowOn && p.inPipe){
+      const along=p.vx*p.ftx+p.vy*p.fty;
+      if(along<340){ p.vx += p.ftx*FLOW*h; p.vy += p.fty*FLOW*h; }
+    }
+    const sp=Math.hypot(p.vx,p.vy);
+    if(sp>VMAX){ p.vx*=VMAX/sp; p.vy*=VMAX/sp; }
+    p.px=p.x; p.py=p.y;
+    p.x+=p.vx*h; p.y+=p.vy*h;
+  }
+  buildGrid(); relax(); relax();
+  collide();
+  for(let i=0;i<N;i++){
+    const p=P[i];
+    p.vx=(p.x-p.px)/h*0.998; p.vy=(p.y-p.py)/h*0.998;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   6. rendering
+   ════════════════════════════════════════════════════════════ */
+const blob=(()=>{ const S=64,c=document.createElement('canvas'); c.width=c.height=S;
+  const x=c.getContext('2d'); const g=x.createRadialGradient(S/2,S/2,0,S/2,S/2,S/2);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(0.62,'rgba(255,255,255,1)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,S,S); return c; })();
+const BR=9;
+
+function poly(ctx,arr,rev){ if(rev){for(let i=arr.length-1;i>=0;i--) ctx.lineTo(arr[i][0],arr[i][1]);}
+                            else   {for(let i=0;i<arr.length;i++)  ctx.lineTo(arr[i][0],arr[i][1]);} }
+const pathInner=new Path2D(), pathWL=new Path2D(), pathWR=new Path2D(), pathHL=new Path2D();
+(()=>{ pathInner.moveTo(iL[0][0],iL[0][1]); poly(pathInner,iL); poly(pathInner,iR,true); pathInner.closePath();
+  pathWL.moveTo(iL[0][0],iL[0][1]); poly(pathWL,iL); poly(pathWL,oL,true); pathWL.closePath();
+  pathWR.moveTo(iR[0][0],iR[0][1]); poly(pathWR,iR); poly(pathWR,oR,true); pathWR.closePath();
+  pathHL.moveTo(iL[0][0],iL[0][1]); for(let i=1;i<iL.length;i++){
+    const [x,y,r]=CL[i],[nx,ny]=NRM[i]; pathHL.lineTo(x-nx*(r-3.2), y-ny*(r-3.2)); } })();
+
+function rr(ctx,x,y,w,h,r){ ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function drawLedge(ctx,L){
+  ctx.save();
+  if(L.ang){ ctx.translate(L.px,L.py); ctx.rotate(L.ang); ctx.translate(-L.px,-L.py); }
+  const w=L.x1-L.x0, h=L.y1-L.y0;
+  ctx.shadowColor='rgba(0,0,0,.55)'; ctx.shadowBlur=22; ctx.shadowOffsetY=10;
+  const g=ctx.createLinearGradient(0,L.y0,0,L.y1);
+  g.addColorStop(0,'#33406a'); g.addColorStop(0.28,'#242c4c'); g.addColorStop(1,'#151a30');
+  ctx.fillStyle=g; rr(ctx,L.x0,L.y0,w,h,L.rr); ctx.fill();
+  ctx.shadowColor='transparent';
+  ctx.strokeStyle='rgba(150,180,255,.32)'; ctx.lineWidth=1.6;
+  ctx.beginPath(); ctx.moveTo(L.x0+L.rr,L.y0+0.9); ctx.lineTo(L.x1-L.rr,L.y0+0.9); ctx.stroke();
+  ctx.restore();
+}
+
+function bounds(){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(const p of P){ if(p.x<x0)x0=p.x; if(p.x>x1)x1=p.x; if(p.y<y0)y0=p.y; if(p.y>y1)y1=p.y; }
+  return {x0,y0,x1,y1};
+}
+
+function drawBg(){
+  const c=bctx;
+  c.clearRect(-400,-400,2400,2000);
+  const g=c.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#141c33'); g.addColorStop(0.55,'#0d1122'); g.addColorStop(1,'#080a14');
+  c.fillStyle=g; c.fillRect(0,0,W,H);
+  const glow=c.createRadialGradient(500,330,20,500,330,520);
+  glow.addColorStop(0,'rgba(90,140,255,.10)'); glow.addColorStop(1,'rgba(90,140,255,0)');
+  c.fillStyle=glow; c.fillRect(0,0,W,H);
+  c.fillStyle='rgba(255,255,255,.035)';
+  for(let y=24;y<H;y+=32) for(let x=24;x<W;x+=32) c.fillRect(x,y,1.4,1.4);
+
+  // shadow under the blob
+  const b=bounds(), cx=(b.x0+b.x1)/2, wdt=(b.x1-b.x0);
+  let sy=null;
+  if(b.y1>560) sy=ledgeB.y0+1.5; else if(b.y1<300 && ledgeA.ang<0.05) sy=ledgeA.y0+1.5;
+  if(sy!==null){
+    c.save(); c.globalAlpha=0.45; c.fillStyle='rgba(0,0,0,.6)'; c.filter='blur(6px)';
+    c.beginPath(); c.ellipse(cx, sy+4, Math.min(wdt*0.55,150), 9, 0,0,7); c.fill();
+    c.filter='none'; c.restore();
+  }
+
+  drawLedge(c,ledgeA); drawLedge(c,ledgeB);
+
+  // glass, back half
+  c.fillStyle='rgba(150,200,255,.055)'; c.fill(pathInner);
+  const wg=c.createLinearGradient(300,0,760,0);
+  wg.addColorStop(0,'rgba(120,160,215,.50)'); wg.addColorStop(.5,'rgba(175,205,245,.34)');
+  wg.addColorStop(1,'rgba(120,160,215,.50)');
+  c.fillStyle=wg; c.fill(pathWL); c.fill(pathWR);
+}
+
+function drawLiquid(){
+  const c=gctx;
+  c.clearRect(-500,-500,2600,2200);
+  for(let i=0;i<N;i++){ const p=P[i]; c.drawImage(blob,p.x-BR,p.y-BR,BR*2,BR*2); }
+  const b=bounds();
+  const g=c.createLinearGradient(0,b.y0-12,0,b.y1+12);
+  g.addColorStop(0,'#ffdf9a'); g.addColorStop(0.34,'#ffb14a'); g.addColorStop(1,'#e8711b');
+  c.globalCompositeOperation='source-in';
+  c.fillStyle=g; c.fillRect(-500,-500,2600,2200);
+  c.globalCompositeOperation='source-over';
+}
+
+function fit(sel){
+  let n=0,pcx=0,pcy=0,qcx=0,qcy=0;
+  for(const p of P) if(sel(p)){ pcx+=p.lx; pcy+=p.ly; qcx+=p.x; qcy+=p.y; n++; }
+  if(!n) return null;
+  pcx/=n; pcy/=n; qcx/=n; qcy/=n;
+  let a=0,b=0,den=0;
+  for(const p of P) if(sel(p)){
+    const px=p.lx-pcx, py=p.ly-pcy, qx=p.x-qcx, qy=p.y-qcy;
+    a+=px*qx+py*qy; b+=px*qy-py*qx; den+=px*px+py*py;
+  }
+  return {pcx,pcy,qcx,qcy, s:Math.hypot(a,b)/(den||1), th:Math.atan2(b,a)};
+}
+function applyFit(ctx,f){
+  ctx.translate(f.qcx,f.qcy); ctx.rotate(f.th);
+  const s=clamp(f.s, CAT_SCALE*0.55, CAT_SCALE*1.3); ctx.scale(s,s);
+  ctx.translate(-f.pcx,-f.pcy);
+}
+
+const DARK='#5a2c0c', PINK='#ff9db4';
+function drawEye(c,x,y,k){
+  const ry=13*k, w=1+eyeWide*0.22;
+  c.fillStyle='#fff8ee';
+  c.beginPath(); c.ellipse(x,y,12*w,ry*w,0,0,7); c.fill();
+  c.fillStyle='#2b1606';
+  c.beginPath(); c.ellipse(x+1.5,y,5.4*w,Math.max(1,ry*0.86)*w,0,0,7); c.fill();
+  c.fillStyle='rgba(255,255,255,.95)';
+  c.beginPath(); c.ellipse(x-2.5,y-4.5*k,3.4,3.4*k,0,0,7); c.fill();
+}
+function drawFace(){
+  if(faceAmt<=0.01) return;
+  const c=fctx;
+  const fb=fit(p=>!p.head), fh=fit(p=>p.head);
+  if(fb){                                    // body stripes
+    c.save(); c.globalAlpha=faceAmt*0.5; applyFit(c,fb);
+    c.strokeStyle='#b4520d'; c.lineWidth=8; c.lineCap='round';
+    const st=[[[-34,-134],[-8,-144]],[[-44,-110],[-16,-120]],[[-46,-84],[-20,-92]]];
+    for(const s of st){ c.beginPath(); c.moveTo(s[0][0],s[0][1]); c.lineTo(s[1][0],s[1][1]); c.stroke(); }
+    c.globalAlpha=faceAmt*0.30; c.fillStyle='#fff1d6';
+    c.beginPath(); c.ellipse(0,-56,26,34,0,0,7); c.fill();
+    c.restore();
+  }
+  if(!fh) return;
+  const c2=fctx;
+  c2.save(); c2.globalAlpha=faceAmt; applyFit(c2,fh);
+  c2.fillStyle=PINK;                          // inner ears
+  c2.beginPath(); c2.moveTo(-46,-215); c2.lineTo(-52,-249); c2.lineTo(-20,-226); c2.closePath(); c2.fill();
+  c2.beginPath(); c2.moveTo( 46,-215); c2.lineTo( 52,-249); c2.lineTo( 20,-226); c2.closePath(); c2.fill();
+  c2.globalAlpha=faceAmt*0.45; c2.strokeStyle='#b4520d'; c2.lineWidth=6; c2.lineCap='round';
+  for(const s of [[[-17,-224],[-11,-208]],[[0,-228],[0,-210]],[[17,-224],[11,-208]]]){
+    c2.beginPath(); c2.moveTo(s[0][0],s[0][1]); c2.lineTo(s[1][0],s[1][1]); c2.stroke(); }
+  c2.globalAlpha=faceAmt;
+  c2.fillStyle='rgba(255,244,222,.55)';       // muzzle
+  c2.beginPath(); c2.ellipse(0,-170,27,18,0,0,7); c2.fill();
+  const k=Math.max(0.08,1-blink);
+  drawEye(c2,-21,-193,k); drawEye(c2,21,-193,k);
+  c2.fillStyle=PINK;                          // nose
+  c2.beginPath(); c2.moveTo(-7.5,-173); c2.lineTo(7.5,-173); c2.lineTo(0,-163); c2.closePath(); c2.fill();
+  c2.strokeStyle=DARK; c2.lineWidth=2.6; c2.lineCap='round';
+  c2.beginPath();                              // mouth
+  c2.moveTo(0,-163); c2.quadraticCurveTo(-6,-155,-13,-160);
+  c2.moveTo(0,-163); c2.quadraticCurveTo( 6,-155, 13,-160); c2.stroke();
+  c2.globalAlpha=faceAmt*0.75; c2.lineWidth=2;  // whiskers
+  const wh=[[[-27,-172],[-64,-180]],[[-27,-168],[-67,-166]],[[-27,-164],[-62,-152]]];
+  for(const s of wh){
+    c2.beginPath(); c2.moveTo(s[0][0],s[0][1]); c2.lineTo(s[1][0],s[1][1]); c2.stroke();
+    c2.beginPath(); c2.moveTo(-s[0][0],s[0][1]); c2.lineTo(-s[1][0],s[1][1]); c2.stroke();
+  }
+  c2.restore();
+}
+
+function drawFg(){
+  const c=fctx;
+  c.clearRect(-400,-400,2400,2000);
+  // glass, front half + highlight
+  c.fillStyle='rgba(205,230,255,.11)'; c.fill(pathWL); c.fill(pathWR);
+  c.strokeStyle='rgba(255,255,255,.20)'; c.lineWidth=1.2;
+  c.stroke(pathWL); c.stroke(pathWR);
+  c.save(); c.globalAlpha=0.16; c.strokeStyle='#ffffff'; c.lineWidth=3.4; c.lineCap='round';
+  c.stroke(pathHL); c.restore();
+
+  drawFace();
+
+  if(bubble.t<bubble.d){
+    const u=bubble.t/bubble.d;
+    const a=Math.min(1,u*6)*Math.min(1,(1-u)*4);
+    c.save(); c.globalAlpha=a;
+    c.font='700 26px ui-sans-serif,system-ui,sans-serif';
+    c.textAlign='center'; c.textBaseline='middle';
+    const wdt=c.measureText(bubble.s).width+30, y=bubble.y-u*16;
+    c.fillStyle='rgba(255,255,255,.93)';
+    rr(c,bubble.x-wdt/2,y-19,wdt,38,19); c.fill();
+    c.beginPath(); c.moveTo(bubble.x-7,y+16); c.lineTo(bubble.x+9,y+16); c.lineTo(bubble.x+1,y+28); c.fill();
+    c.fillStyle='#2a1a0a'; c.fillText(bubble.s,bubble.x,y);
+    c.restore();
+  }
+
+  if(dbg.checked){
+    c.save();
+    c.strokeStyle='rgba(0,255,190,.5)'; c.lineWidth=1;
+    c.beginPath(); c.moveTo(CL[0][0],CL[0][1]);
+    for(const p of CL) c.lineTo(p[0],p[1]); c.stroke();
+    c.fillStyle='rgba(255,255,255,.85)';
+    for(const p of P) c.fillRect(p.x-0.7,p.y-0.7,1.4,1.4);
+    c.strokeStyle='rgba(255,60,120,.45)';
+    for(const s of SEGS){ c.beginPath(); c.moveTo(s.ax,s.ay); c.lineTo(s.bx,s.by); c.stroke(); }
+    c.fillStyle='#8ef'; c.font='12px ui-monospace,monospace'; c.textAlign='left'; c.textBaseline='top';
+    c.fillText(`phase: ${PHASES[phase].n}  t=${pt.toFixed(2)}  particles=${N}  inPipe=${inPipeCount}`,14,14);
+    c.restore();
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   7. loop + UI
+   ════════════════════════════════════════════════════════════ */
+const btnPlay=document.getElementById('btnPlay'),
+      btnRestart=document.getElementById('btnRestart'),
+      btnSkip=document.getElementById('btnSkip'),
+      gloss=document.getElementById('gloss'),
+      dbg=document.getElementById('debug'),
+      spd=document.getElementById('speed');
+let paused=false, perf=0, last=performance.now();
+
+btnPlay.onclick=()=>{ paused=!paused; btnPlay.textContent=paused?'▶ Play':'⏸ Pause'; };
+btnRestart.onclick=()=>reset();
+btnSkip.onclick=()=>enterPhase(phase+1);
+gloss.onchange=()=>{ cGoo.classList.toggle('plain',!gloss.checked);
+  document.getElementById('lblGloss').classList.toggle('on',gloss.checked); };
+dbg.onchange=()=>document.getElementById('lblDebug').classList.toggle('on',dbg.checked);
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){ e.preventDefault(); btnPlay.click(); }
+  if(e.key==='r'||e.key==='R') reset();
+});
+
+function reset(){
+  for(let i=0;i<N;i++){
+    const p=P[i]; const [lx,ly]=REST_PTS[i];
+    p.lx=lx; p.ly=ly;
+    p.x=POSE_A.x+lx*CAT_SCALE; p.y=POSE_A.y+ly*CAT_SCALE;
+    p.vx=p.vy=0;
+  }
+  tagRegions();
+  ledgeA.ang=0; ledgeTarget=0; bubble.d=0;
+  phase=0; pt=0;
+}
+
+function frame(now){
+  let dt=(now-last)/1000; last=now;
+  dt=Math.min(dt,1/30)*parseFloat(spd.value);
+  if(!paused){
+    perf+=dt;
+    bubble.t+=dt;
+    updatePhase(dt);
+    updateParams(dt);
+    inPipeCount=pipeProbe();
+    for(let k=0;k<SUB;k++) step(dt/SUB);
+  }
+  drawBg(); drawLiquid(); drawFg();
+  requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

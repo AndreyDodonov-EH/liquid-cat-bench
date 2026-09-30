@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proof that Cats are Liquid 🐱🧪</title>
+  <style>
+    :root {
+      --bg: #1e1b2e;
+      --panel: #2a2640;
+      --accent: #ff9f43;
+      --accent-hover: #ffb56b;
+      --text: #f3f0ff;
+      --subtext: #a5a0c2;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 840px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    h1 span {
+      color: var(--accent);
+      text-shadow: 0 0 16px rgba(255, 159, 67, 0.4);
+    }
+
+    p.subtitle {
+      color: var(--subtext);
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      background: radial-gradient(circle at 50% 40%, #2f2a4a 0%, #1a1727 100%);
+      border-radius: 20px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 840 / 720;
+      cursor: pointer;
+    }
+
+    .controls-panel {
+      width: 100%;
+      background: var(--panel);
+      margin-top: 14px;
+      padding: 14px 20px;
+      border-radius: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    button {
+      background: #393456;
+      color: var(--text);
+      border: none;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button:hover {
+      background: var(--accent);
+      color: #1e1b2e;
+      transform: translateY(-1px);
+    }
+
+    button.active {
+      background: var(--accent);
+      color: #1e1b2e;
+    }
+
+    .scrubber-container {
+      flex: 1 1 200px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #413c63;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(255, 159, 67, 0.8);
+      transition: transform 0.1s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    .breed-selector {
+      display: flex;
+      gap: 6px;
+    }
+
+    .breed-btn {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 3px 8px;
+      border-radius: 20px;
+      color: var(--subtext);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>PHYSICS LAB: <span>CATS ARE LIQUID</span> 🐾</h1>
+    <p class="subtitle">Standard Fluid-Feline Dynamics in a Narrow Conduit</p>
+  </header>
+
+  <div class="canvas-wrapper">
+    <canvas id="canvas" width="840" height="720"></canvas>
+  </div>
+
+  <div class="controls-panel">
+    <div class="control-group">
+      <button id="playBtn">⏸ Pause</button>
+      <button id="soundBtn">🔇 Sound Off</button>
+    </div>
+
+    <div class="scrubber-container">
+      <span class="badge" id="timeLabel">0.0s</span>
+      <input type="range" id="scrubber" min="0" max="1" step="0.001" value="0">
+    </div>
+
+    <div class="control-group">
+      <div class="breed-selector">
+        <button class="breed-btn active" data-breed="ginger">🍊 Marmalade</button>
+        <button class="breed-btn" data-breed="void">🐈‍⬛ Void</button>
+        <button class="breed-btn" data-breed="calico">🌸 Calico</button>
+        <button class="breed-btn" data-breed="slime">🧪 Slime Cat</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- AUDIO SYNTHESIZER (Pure Web Audio, No External Files) ---
+  class SoundFX {
+    constructor() {
+      this.ctx = null;
+      this.muted = true;
+    }
+
+    init() {
+      if (!this.ctx) {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    slurp() {
+      if (this.muted || !this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(140, this.ctx.currentTime + 0.35);
+      gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.36);
+    }
+
+    flowGlug() {
+      if (this.muted || !this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      const f = 200 + Math.random() * 150;
+      osc.frequency.setValueAtTime(f, this.ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(f + 80, this.ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.16);
+    }
+
+    pop() {
+      if (this.muted || !this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(260, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(740, this.ctx.currentTime + 0.18);
+      gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.22);
+    }
+
+    purr() {
+      if (this.muted || !this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const mod = this.ctx.createOscillator();
+      const modGain = this.ctx.createGain();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(45, this.ctx.currentTime);
+
+      mod.frequency.setValueAtTime(24, this.ctx.currentTime); // Purr flutter
+      modGain.gain.setValueAtTime(20, this.ctx.currentTime);
+      mod.connect(modGain);
+      modGain.connect(osc.frequency);
+
+      gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.8);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      mod.start();
+      osc.start();
+      mod.stop(this.ctx.currentTime + 0.8);
+      osc.stop(this.ctx.currentTime + 0.8);
+    }
+  }
+
+  const sfx = new SoundFX();
+
+  // --- CAT COLOR THEMES ---
+  const BREEDS = {
+    ginger: {
+      body: '#ff9233',
+      dark: '#d35400',
+      belly: '#ffe0b2',
+      innerEar: '#ffab91',
+      eyes: '#2ecc71',
+      nose: '#ff5252',
+      isSlime: false
+    },
+    void: {
+      body: '#2c2938',
+      dark: '#16141e',
+      belly: '#423e54',
+      innerEar: '#e056fd',
+      eyes: '#f1c40f',
+      nose: '#ff7979',
+      isSlime: false
+    },
+    calico: {
+      body: '#f5f6fa',
+      dark: '#d35400',
+      belly: '#2f3640',
+      innerEar: '#ffb8b8',
+      eyes: '#3498db',
+      nose: '#ff6b81',
+      isSlime: false
+    },
+    slime: {
+      body: 'rgba(46, 213, 115, 0.82)',
+      dark: 'rgba(38, 166, 91, 0.9)',
+      belly: 'rgba(123, 237, 159, 0.95)',
+      innerEar: '#ff6b81',
+      eyes: '#ffffff',
+      nose: '#ff4757',
+      isSlime: true
+    }
+  };
+
+  let currentBreed = BREEDS.ginger;
+
+  // --- SETUP CANVASES & DIMENSIONS ---
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const W = 840;
+  const H = 720;
+
+  // --- PATH MATHEMATICS (Hermite / Bezier Spline Tube) ---
+  // Waypoints for the winding glass pipe:
+  const WAYPOINTS = [
+    { x: 230, y: 155, r: 52 }, // Funnel cone entrance
+    { x: 230, y: 220, r: 24 }, // Neck
+    { x: 240, y: 280, r: 24 }, // Downward bend
+    { x: 340, y: 320, r: 23 }, // Smooth curve right
+    { x: 500, y: 340, r: 22 }, // High loop entry
+    { x: 580, y: 400, r: 22 }, // Far right loop crest
+    { x: 540, y: 475, r: 22 }, // Loop under
+    { x: 380, y: 495, r: 22 }, // Flow back left
+    { x: 280, y: 535, r: 23 }, // Bend downward
+    { x: 260, y: 590, r: 25 }  // Nozzle outlet
+  ];
+
+  // Discretize the curve into dense, equidistant arc-length samples
+  function generateSpline(points, samples = 700) {
+    const raw = [];
+    for (let t = 0; t <= 1; t += 1 / samples) {
+      // Catmull-Rom interpolation
+      const p = (points.length - 1) * t;
+      const i0 = Math.floor(p);
+      const frac = p - i0;
+
+      const p0 = points[Math.max(0, i0 - 1)];
+      const p1 = points[i0];
+      const p2 = points[Math.min(points.length - 1, i0 + 1)];
+      const p3 = points[Math.min(points.length - 1, i0 + 2)];
+
+      const x = 0.5 * (
+        (2 * p1.x) +
+        (-p0.x + p2.x) * frac +
+        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * frac * frac +
+        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * frac * frac * frac
+      );
+
+      const y = 0.5 * (
+        (2 * p1.y) +
+        (-p0.y + p2.y) * frac +
+        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * frac * frac +
+        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * frac * frac * frac
+      );
+
+      const r = p1.r + (p2.r - p1.r) * frac;
+      raw.push({ x, y, r });
+    }
+
+    // Arc-length parameterization
+    const path = [];
+    let accum = 0;
+    path.push({ ...raw[0], dist: 0, nx: 0, ny: 0, tx: 0, ty: 0 });
+
+    for (let i = 1; i < raw.length; i++) {
+      const dx = raw[i].x - raw[i - 1].x;
+      const dy = raw[i].y - raw[i - 1].y;
+      const step = Math.hypot(dx, dy);
+      accum += step;
+
+      const len = step || 1;
+      const tx = dx / len;
+      const ty = dy / len;
+      // Normal vector pointing left of tangent
+      const nx = -ty;
+      const ny = tx;
+
+      path.push({
+        x: raw[i].x,
+        y: raw[i].y,
+        r: raw[i].r,
+        dist: accum,
+        tx, ty,
+        nx, ny
+      });
+    }
+
+    return { path, totalLength: accum };
+  }
+
+  const { path: TUBE_PATH, totalLength: TOTAL_TUBE_LEN } = generateSpline(WAYPOINTS);
+
+  // Quick lookup function along arc-length
+  function getPathPoint(s) {
+    if (s <= 0) return TUBE_PATH[0];
+    if (s >= TOTAL_TUBE_LEN) return TUBE_PATH[TUBE_PATH.length - 1];
+
+    let low = 0, high = TUBE_PATH.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (TUBE_PATH[mid].dist < s) low = mid + 1;
+      else high = mid - 1;
+    }
+    const idx = Math.max(1, low);
+    const pA = TUBE_PATH[idx - 1];
+    const pB = TUBE_PATH[idx];
+    const segLen = pB.dist - pA.dist || 1;
+    const factor = (s - pA.dist) / segLen;
+
+    return {
+      x: pA.x + (pB.x - pA.x) * factor,
+      y: pA.y + (pB.y - pA.y) * factor,
+      r: pA.r + (pB.r - pA.r) * factor,
+      tx: pA.tx + (pB.tx - pA.tx) * factor,
+      ty: pA.ty + (pB.ty - pA.ty) * factor,
+      nx: pA.nx + (pB.nx - pA.nx) * factor,
+      ny: pA.ny + (pB.ny - pA.ny) * factor
+    };
+  }
+
+  // --- ANIMATION STATE ---
+  const CYCLE_DURATION = 9.0; // Seconds for full seamless loop
+  let animTime = 0.0;
+  let isPlaying = true;
+  let lastTimestamp = null;
+
+  // Sound triggers
+  let triggeredSlurp = false;
+  let triggeredPop = false;
+  let triggeredPurr = false;
+  let lastGlugTime = 0;
+
+  // --- DRAWING COMPONENTS ---
+
+  // 1. Cozy Lab Equipment & Stands
+  function drawLabScene() {
+    // Metal lab stand upright rod
+    ctx.fillStyle = '#1c182a';
+    ctx.fillRect(130, 80, 16, 580);
+    ctx.fillStyle = '#3f395b';
+    ctx.fillRect(133, 80, 6, 580);
+
+    // Stand base plate
+    ctx.fillStyle = '#221e35';
+    ctx.beginPath();
+    ctx.roundRect(80, 650, 180, 24, 6);
+    ctx.fill();
+    ctx.fillStyle = '#4a446c';
+    ctx.fillRect(80, 650, 180, 3);
+
+    // Clamps holding the glass apparatus
+    drawClamp(138, 230, 230, 230);
+    drawClamp(138, 480, 280, 530);
+
+    // Lower Dish / Bowl (Receiver)
+    drawGlassBowl(260, 642, 85, 48);
+
+    // Funnel Top Rim Mount
+    ctx.fillStyle = '#2c2744';
+    ctx.fillRect(200, 75, 60, 8);
+  }
+
+  function drawClamp(x1, y1, x2, y2) {
+    ctx.save();
+    ctx.strokeStyle = '#322d4b';
+    ctx.lineWidth = 9;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#574f7d';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1 - 2);
+    ctx.lineTo(x2, y2 - 2);
+    ctx.stroke();
+
+    // Metallic clamp ring
+    ctx.fillStyle = '#ff9f43';
+    ctx.beginPath();
+    ctx.arc(x2, y2, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGlassBowl(cx, cy, rx, ry) {
+    ctx.save();
+    // Glass drop shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + ry + 4, rx * 0.95, ry * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Back glass wall
+    ctx.fillStyle = 'rgba(180, 235, 255, 0.08)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI);
+    ctx.lineTo(cx - rx, cy);
+    ctx.fill();
+
+    // Dish border
+    ctx.strokeStyle = 'rgba(210, 245, 255, 0.35)';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rx, 0, Math.PI);
+    ctx.stroke();
+
+    // Dish Lip
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry * 0.3, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 2. Clear Glass Pipe Render (Back wall & front gloss highlights)
+  function drawGlassPipeOutline(drawFront = false) {
+    ctx.save();
+
+    if (!drawFront) {
+      // Draw Inner Back Tint
+      ctx.beginPath();
+      for (let i = 0; i < TUBE_PATH.length; i++) {
+        const p = TUBE_PATH[i];
+        const lx = p.x + p.nx * (p.r + 3);
+        const ly = p.y + p.ny * (p.r + 3);
+        if (i === 0) ctx.moveTo(lx, ly);
+        else ctx.lineTo(lx, ly);
+      }
+      for (let i = TUBE_PATH.length - 1; i >= 0; i--) {
+        const p = TUBE_PATH[i];
+        const rx = p.x - p.nx * (p.r + 3);
+        const ry = p.y - p.ny * (p.r + 3);
+        ctx.lineTo(rx, ry);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(140, 215, 255, 0.07)';
+      ctx.fill();
+
+      // Funnel mouth opening ring
+      const topP = TUBE_PATH[0];
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(topP.x, topP.y - 12, topP.r + 14, 18, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Measurement graduations on the back
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1.5;
+      for (let s = 120; s < TOTAL_TUBE_LEN - 40; s += 80) {
+        const pt = getPathPoint(s);
+        ctx.beginPath();
+        ctx.moveTo(pt.x + pt.nx * (pt.r - 2), pt.y + pt.ny * (pt.r - 2));
+        ctx.lineTo(pt.x + pt.nx * (pt.r - 10), pt.y + pt.ny * (pt.r - 10));
+        ctx.stroke();
+      }
+    } else {
+      // FRONT SPECULAR HIGHLIGHT (Glossy glass sheen)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let i = 5; i < TUBE_PATH.length - 5; i += 2) {
+        const p = TUBE_PATH[i];
+        const hx = p.x + p.nx * (p.r - 3);
+        const hy = p.y + p.ny * (p.r - 3);
+        if (i === 5) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+      }
+      ctx.stroke();
+
+      // Subtle secondary inner highlight
+      ctx.strokeStyle = 'rgba(180, 230, 255, 0.18)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 5; i < TUBE_PATH.length - 5; i += 2) {
+        const p = TUBE_PATH[i];
+        const hx = p.x - p.nx * (p.r - 4);
+        const hy = p.y - p.ny * (p.r - 4);
+        if (i === 5) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+      }
+      ctx.stroke();
+
+      // Nozzle drop lip
+      const nozzle = TUBE_PATH[TUBE_PATH.length - 1];
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.ellipse(nozzle.x, nozzle.y, nozzle.r * 0.9, 5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // --- CAT DRAWING ENGINE ---
+
+  // Draw resting cat atop funnel
+  function drawSolidCatLoaf(cx, cy, scaleX, scaleY, meltProgress) {
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Squash & melt interpolation
+    const dropY = meltProgress * 42;
+    const bodyW = 54 * (1 - meltProgress * 0.42);
+    const bodyH = 46 * (1 + meltProgress * 0.55);
+
+    // Body
+    ctx.fillStyle = currentBreed.body;
+    ctx.beginPath();
+    ctx.ellipse(0, dropY, bodyW * scaleX, bodyH * scaleY, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (!currentBreed.isSlime) {
+      // Tabby stripes / Calico spots
+      ctx.fillStyle = currentBreed.dark;
+      ctx.beginPath();
+      ctx.ellipse(-bodyW * 0.45, dropY - 6, 8, 14, 0.3, 0, Math.PI * 2);
+      ctx.ellipse(bodyW * 0.45, dropY - 6, 8, 14, -0.3, 0, Math.PI * 2);
+      ctx.ellipse(0, dropY - bodyH * 0.5, 18, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Melting ears that droop as it enters
+    const earDroop = meltProgress * 0.6;
+    drawEar(-26 * (1 - meltProgress * 0.3), -28 + dropY * 0.4, -0.3 + earDroop);
+    drawEar(26 * (1 - meltProgress * 0.3), -28 + dropY * 0.4, 0.3 - earDroop);
+
+    // Face features
+    const faceY = dropY + 2;
+    // Eyes: blink when melting begins
+    const blink = (meltProgress > 0.15 && meltProgress < 0.35) || (Math.sin(animTime * 3) > 0.95);
+    drawEyes(0, faceY, blink, 1);
+
+    // Cute Nose & Mouth
+    drawNoseAndMouth(0, faceY + 9, meltProgress > 0.4 ? 'o' : ':3');
+
+    // Whiskers
+    drawWhiskers(0, faceY + 10, 1 - meltProgress * 0.5);
+
+    // Front little paws hanging over funnel rim
+    if (meltProgress < 0.6) {
+      const pawY = 32 + dropY * 0.3;
+      ctx.fillStyle = currentBreed.body;
+      ctx.beginPath();
+      ctx.arc(-18, pawY, 9, 0, Math.PI * 2);
+      ctx.arc(18, pawY, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = currentBreed.nose;
+      ctx.beginPath();
+      ctx.arc(-18, pawY + 2, 4, 0, Math.PI * 2);
+      ctx.arc(18, pawY + 2, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  function drawEar(x, y, rotation) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    ctx.fillStyle = currentBreed.body;
+    ctx.beginPath();
+    ctx.moveTo(-12, 10);
+    ctx.lineTo(0, -22);
+    ctx.lineTo(12, 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // Inner pink ear
+    ctx.fillStyle = currentBreed.innerEar;
+    ctx.beginPath();
+    ctx.moveTo(-7, 7);
+    ctx.lineTo(0, -14);
+    ctx.lineTo(7, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawEyes(x, y, isBlink, scale = 1) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    if (isBlink) {
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(-15 * scale, 0, 7 * scale, 0.2 * Math.PI, 0.8 * Math.PI);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(15 * scale, 0, 7 * scale, 0.2 * Math.PI, 0.8 * Math.PI);
+      ctx.stroke();
+    } else {
+      // Big cartoon kawaii eyes
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(-15 * scale, 0, 9 * scale, 12 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(15 * scale, 0, 9 * scale, 12 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Iris
+      ctx.fillStyle = currentBreed.eyes;
+      ctx.beginPath();
+      ctx.arc(-15 * scale, 0, 7 * scale, 0, Math.PI * 2);
+      ctx.arc(15 * scale, 0, 7 * scale, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Pupil
+      ctx.fillStyle = '#111';
+      ctx.beginPath();
+      ctx.arc(-15 * scale, 0, 4.5 * scale, 0, Math.PI * 2);
+      ctx.arc(15 * scale, 0, 4.5 * scale, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Catchlight highlights
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(-17 * scale, -4 * scale, 2.5 * scale, 0, Math.PI * 2);
+      ctx.arc(13 * scale, -4 * scale, 2.5 * scale, 0, Math.PI * 2);
+      ctx.arc(-13 * scale, 3 * scale, 1.2 * scale, 0, Math.PI * 2);
+      ctx.arc(17 * scale, 3 * scale, 1.2 * scale, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawNoseAndMouth(x, y, type = ':3') {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Pink nose
+    ctx.fillStyle = currentBreed.nose;
+    ctx.beginPath();
+    ctx.moveTo(-4, -3);
+    ctx.lineTo(4, -3);
+    ctx.lineTo(0, 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Mouth
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    if (type === 'o') {
+      ctx.fillStyle = '#8b0000';
+      ctx.beginPath();
+      ctx.arc(0, 7, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(-4, 4, 4, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(4, 4, 4, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawWhiskers(x, y, alpha = 1) {
+    if (alpha <= 0.05) return;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = `rgba(40, 40, 40, ${0.7 * alpha})`;
+    ctx.lineWidth = 1.5;
+
+    // Left whiskers
+    ctx.beginPath();
+    ctx.moveTo(-10, -2); ctx.lineTo(-34, -8);
+    ctx.moveTo(-10, 2);  ctx.lineTo(-36, 3);
+    ctx.moveTo(-10, 6);  ctx.lineTo(-32, 12);
+
+    // Right whiskers
+    ctx.moveTo(10, -2);  ctx.lineTo(34, -8);
+    ctx.moveTo(10, 2);   ctx.lineTo(36, 3);
+    ctx.moveTo(10, 6);   ctx.lineTo(32, 12);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 3. Cat Fluid Ribbon Flowing Inside the Tube
+  function drawCatFluidInPipe(sTail, sHead) {
+    const startS = Math.max(0, sTail);
+    const endS = Math.min(TOTAL_TUBE_LEN, sHead);
+    if (startS >= endS) return;
+
+    // Sample along the fluid body
+    const leftPts = [];
+    const rightPts = [];
+    const step = 4; // High resolution sampling
+
+    for (let s = startS; s <= endS; s += step) {
+      const pt = getPathPoint(s);
+      // Fluid viscosity wiggle
+      const ripple = Math.sin(s * 0.08 - animTime * 14) * 1.5;
+      const fillR = Math.max(2, (pt.r - 2.5) + ripple);
+
+      leftPts.push({ x: pt.x + pt.nx * fillR, y: pt.y + pt.ny * fillR });
+      rightPts.push({ x: pt.x - pt.nx * fillR, y: pt.y - pt.ny * fillR });
+    }
+
+    if (leftPts.length < 2) return;
+
+    // Build the fluid polygon
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(leftPts[0].x, leftPts[0].y);
+
+    for (let i = 1; i < leftPts.length; i++) {
+      ctx.lineTo(leftPts[i].x, leftPts[i].y);
+    }
+
+    // Leading Head Cap (Round hemispherical meniscus)
+    const headPt = getPathPoint(endS);
+    ctx.arc(headPt.x, headPt.y, headPt.r - 2.5, Math.atan2(headPt.ny, headPt.nx) - Math.PI, Math.atan2(headPt.ny, headPt.nx));
+
+    for (let i = rightPts.length - 1; i >= 0; i--) {
+      ctx.lineTo(rightPts[i].x, rightPts[i].y);
+    }
+
+    // Trailing Tail Cap
+    const tailPt = getPathPoint(startS);
+    ctx.arc(tailPt.x, tailPt.y, tailPt.r - 3, Math.atan2(tailPt.ny, tailPt.nx), Math.atan2(tailPt.ny, tailPt.nx) - Math.PI);
+
+    ctx.closePath();
+    ctx.fillStyle = currentBreed.body;
+    ctx.fill();
+
+    // Tabby swirl waves or lighter belly liquid stream inside
+    ctx.strokeStyle = currentBreed.belly;
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let s = startS + 18; s < endS - 18; s += 8) {
+      const pt = getPathPoint(s);
+      const wave = Math.sin(s * 0.05 + animTime * 8) * 3;
+      const wx = pt.x + pt.nx * wave;
+      const wy = pt.y + pt.ny * wave;
+      if (s === startS + 18) ctx.moveTo(wx, wy);
+      else ctx.lineTo(wx, wy);
+    }
+    ctx.stroke();
+
+    // Fluid Sparkle/Bubbles inside the liquid cat
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    for (let i = 1; i <= 5; i++) {
+      const bDist = startS + ((endS - startS) * ((i * 0.19 + animTime * 0.2) % 0.9 + 0.05));
+      if (bDist > startS && bDist < endS) {
+        const bPt = getPathPoint(bDist);
+        const bOff = Math.sin(i * 3.7 + animTime * 4) * (bPt.r * 0.45);
+        ctx.beginPath();
+        ctx.arc(bPt.x + bPt.nx * bOff, bPt.y + bPt.ny * bOff, (i % 2 === 0 ? 3 : 2), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // DRAW CAT FACE AT THE LEADING MENISCUS
+    if (endS < TOTAL_TUBE_LEN - 10) {
+      ctx.save();
+      ctx.translate(headPt.x, headPt.y);
+      const angle = Math.atan2(headPt.ty, headPt.tx);
+      ctx.rotate(angle);
+
+      // Cheeks pushed against the glass walls
+      ctx.fillStyle = currentBreed.body;
+      ctx.beginPath();
+      ctx.ellipse(-2, 0, 16, headPt.r - 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Flattened, squished ears pinned back along the sides
+      drawSquishedPipeEar(-10, -headPt.r + 4, true);
+      drawSquishedPipeEar(-10, headPt.r - 4, false);
+
+      // Squished derp face
+      drawEyes(2, 0, Math.sin(animTime * 2.5) > 0.9, 0.82);
+      drawNoseAndMouth(7, 0, 'o');
+
+      // Whiskers swept backwards by the pipe
+      ctx.strokeStyle = 'rgba(30,30,30,0.6)';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(8, -4); ctx.lineTo(-14, -12);
+      ctx.moveTo(8, 4);  ctx.lineTo(-14, 12);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // DRAW CAT TAIL TIP AT THE TRAILING EDGE
+    if (startS > 10 && startS < TOTAL_TUBE_LEN) {
+      ctx.save();
+      ctx.translate(tailPt.x, tailPt.y);
+      const tAngle = Math.atan2(tailPt.ty, tailPt.tx);
+      ctx.rotate(tAngle);
+
+      // Cute animated swishing tail tip trailing behind
+      const swish = Math.sin(animTime * 16) * 5;
+      ctx.strokeStyle = currentBreed.dark;
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(-14, swish, -26, swish * 1.5);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  function drawSquishedPipeEar(x, y, isTop) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(isTop ? -0.2 : 0.2);
+    ctx.fillStyle = currentBreed.dark;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 10, 4.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = currentBreed.innerEar;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 6, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 4. Pouring Stream & Reconstituted Cat in the Bowl
+  function drawPouringStream(progress) {
+    const nozzle = TUBE_PATH[TUBE_PATH.length - 1];
+    const bowlY = 646;
+
+    if (progress <= 0 || progress >= 1) return;
+
+    // Stream width tapers down
+    const streamW = 10 * Math.sin(progress * Math.PI);
+    const wobble = Math.sin(animTime * 22) * 2;
+
+    ctx.save();
+    ctx.fillStyle = currentBreed.body;
+    ctx.beginPath();
+    ctx.moveTo(nozzle.x - streamW, nozzle.y);
+    ctx.quadraticCurveTo(nozzle.x + wobble, (nozzle.y + bowlY) / 2, nozzle.x - streamW * 0.7, bowlY);
+    ctx.lineTo(nozzle.x + streamW * 0.7, bowlY);
+    ctx.quadraticCurveTo(nozzle.x + wobble, (nozzle.y + bowlY) / 2, nozzle.x + streamW, nozzle.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Stream Highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(nozzle.x + wobble * 0.5, nozzle.y + 4);
+    ctx.lineTo(nozzle.x + wobble * 0.5, bowlY - 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBowlCat(fillAmount, solidifyProgress) {
+    const bx = 260;
+    const by = 642;
+    const maxR = 76;
+
+    if (fillAmount <= 0.001) return;
+
+    ctx.save();
+
+    // Puddle rising in the bowl
+    const liquidLevel = fillAmount * 44;
+    const currentY = by + 44 - liquidLevel;
+    const curRx = maxR * Math.sin((liquidLevel / 48) * (Math.PI / 2));
+    const curRy = curRx * 0.32;
+
+    // Jiggle effect during pouring and reconstitution
+    const jiggle = Math.sin(animTime * 18) * (1 - solidifyProgress) * 4;
+
+    if (solidifyProgress < 0.6) {
+      // VISCOUS PUDDLE STATE
+      ctx.fillStyle = currentBreed.body;
+      ctx.beginPath();
+      // Arc bottom of bowl
+      ctx.arc(bx, by, curRx, 0, Math.PI);
+      ctx.fill();
+
+      // Top meniscus of pudding cat
+      ctx.fillStyle = currentBreed.belly;
+      ctx.beginPath();
+      ctx.ellipse(bx, currentY + jiggle, curRx, curRy, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Splat ripples
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(bx, currentY + jiggle, curRx * 0.6, curRy * 0.6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // POP! RECONSTITUTING INTO A CONTENT BOWL LOAF
+      const popT = (solidifyProgress - 0.6) / 0.4; // 0 -> 1
+      // Bouncy harmonic overshoot
+      const bounce = Math.sin(popT * Math.PI * 2.5) * Math.exp(-popT * 3.5) * 22;
+
+      const loafW = 62 + bounce * 0.3;
+      const loafH = 50 - bounce * 0.5;
+      const loafY = by + 22 - (popT * 26) + bounce;
+
+      // Chubby sphere body sitting snug inside bowl
+      ctx.fillStyle = currentBreed.body;
+      ctx.beginPath();
+      ctx.ellipse(bx, loafY, loafW, loafH, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tabby swirls
+      if (!currentBreed.isSlime) {
+        ctx.fillStyle = currentBreed.dark;
+        ctx.beginPath();
+        ctx.ellipse(bx - 36, loafY - 6, 8, 14, 0.4, 0, Math.PI * 2);
+        ctx.ellipse(bx + 36, loafY - 6, 8, 14, -0.4, 0, Math.PI * 2);
+        ctx.ellipse(bx, loafY - loafH * 0.6, 16, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Ears pop up!
+      const earScale = Math.min(1, popT * 1.5);
+      drawEar(bx - 28, loafY - loafH * 0.7, -0.2);
+      drawEar(bx + 28, loafY - loafH * 0.7, 0.2);
+
+      // Face: Pure bliss / satisfied `^ w ^`
+      const faceY = loafY - 2;
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 2.4;
+
+      // Happy curved closed eyes
+      ctx.beginPath();
+      ctx.arc(bx - 16, faceY, 7, 1.1 * Math.PI, 1.9 * Math.PI);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(bx + 16, faceY, 7, 1.1 * Math.PI, 1.9 * Math.PI);
+      ctx.stroke();
+
+      // Cheeks blush
+      ctx.fillStyle = 'rgba(255, 107, 129, 0.45)';
+      ctx.beginPath();
+      ctx.arc(bx - 24, faceY + 5, 6, 0, Math.PI * 2);
+      ctx.arc(bx + 24, faceY + 5, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cute mouth and nose
+      drawNoseAndMouth(bx, faceY + 7, ':3');
+      drawWhiskers(bx, faceY + 8, popT);
+
+      // Front paws resting on the rim of the bowl
+      ctx.fillStyle = currentBreed.body;
+      ctx.beginPath();
+      ctx.arc(bx - 26, by + 1, 9, 0, Math.PI * 2);
+      ctx.arc(bx + 26, by + 1, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = currentBreed.nose;
+      ctx.beginPath();
+      ctx.arc(bx - 26, by + 3, 4, 0, Math.PI * 2);
+      ctx.arc(bx + 26, by + 3, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Happy Purr Floating Hearts / Zzz
+      if (popT > 0.85) {
+        const floatY = (animTime * 25) % 40;
+        ctx.fillStyle = 'rgba(255, 107, 129, ' + (1 - floatY / 40) + ')';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText('♥', bx + 36, loafY - 35 - floatY);
+        ctx.fillText('purr...', bx - 60, loafY - 30 - (floatY * 0.8));
+      }
+    }
+
+    ctx.restore();
+  }
+
+  // --- MAIN TIMELINE LOOP ---
+  function updateAndRender(dt) {
+    if (isPlaying) {
+      animTime = (animTime + dt) % CYCLE_DURATION;
+      document.getElementById('scrubber').value = animTime / CYCLE_DURATION;
+    } else {
+      animTime = parseFloat(document.getElementById('scrubber').value) * CYCLE_DURATION;
+    }
+
+    document.getElementById('timeLabel').innerText = animTime.toFixed(1) + 's';
+
+    const t = animTime / CYCLE_DURATION; // Normalized 0.0 -> 1.0
+
+    // TIMELINE PHASES:
+    // 0.00 - 0.12: Cat chilling on funnel, blinks
+    // 0.12 - 0.32: Cat melts into funnel neck
+    // 0.32 - 0.65: Cat fluid zips through S-tube
+    // 0.65 - 0.78: Cat pours into lower dish
+    // 0.78 - 0.92: Puddle wobbles, POP! Reconstitutes
+    // 0.92 - 1.00: Cat rests happily in bowl, loops seamlessly back
+
+    // Clear Canvas
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw Scene Apparatus (Stand, dish back, pipes)
+    drawLabScene();
+    drawGlassPipeOutline(false); // Back glass
+
+    // CAT ANIMATION LOGIC:
+    const FLUID_LEN = 260; // Length of cat in tube
+
+    if (t < 0.12) {
+      // 1. Solid resting loaf atop funnel
+      triggeredSlurp = false;
+      triggeredPop = false;
+      triggeredPurr = false;
+      drawSolidCatLoaf(230, 85, 1, 1, 0);
+    } else if (t < 0.32) {
+      // 2. Melting into the funnel
+      const meltP = (t - 0.12) / 0.20;
+      if (!triggeredSlurp && meltP > 0.3) {
+        sfx.slurp();
+        triggeredSlurp = true;
+      }
+      drawSolidCatLoaf(230, 85, 1 - meltP * 0.2, 1 + meltP * 0.3, meltP);
+
+      // Fluid head begins pushing down tube
+      const sHead = meltP * (FLUID_LEN + 30);
+      drawCatFluidInPipe(0, sHead);
+    } else if (t < 0.65) {
+      // 3. Gliding fully inside the curvy tube
+      const travelP = (t - 0.32) / 0.33; // 0 -> 1
+      const totalTravelDist = TOTAL_TUBE_LEN + FLUID_LEN;
+      const currentHead = travelP * totalTravelDist;
+      const currentTail = currentHead - FLUID_LEN;
+
+      // Subtle glug glug audio
+      if (animTime - lastGlugTime > 0.45) {
+        sfx.flowGlug();
+        lastGlugTime = animTime;
+      }
+
+      drawCatFluidInPipe(currentTail, currentHead);
+    } else if (t < 0.78) {
+      // 4. Exiting nozzle, pouring into bowl
+      const exitP = (t - 0.65) / 0.13;
+      const currentTail = TOTAL_TUBE_LEN - FLUID_LEN + (exitP * FLUID_LEN);
+      drawCatFluidInPipe(currentTail, TOTAL_TUBE_LEN);
+      drawPouringStream(exitP);
+      drawBowlCat(exitP, 0);
+    } else {
+      // 5. Liquid reconstitution into solid bowl loaf
+      const solidP = (t - 0.78) / 0.22; // 0 -> 1
+      if (!triggeredPop && solidP > 0.6) {
+        sfx.pop();
+        triggeredPop = true;
+      }
+      if (!triggeredPurr && solidP > 0.8) {
+        sfx.purr();
+        triggeredPurr = true;
+      }
+      drawBowlCat(1.0, solidP);
+    }
+
+    // Front specular reflection layer of glass pipe
+    drawGlassPipeOutline(true);
+  }
+
+  // --- RAF LOOP ---
+  function loop(timestamp) {
+    if (!lastTimestamp) lastTimestamp = timestamp;
+    const dt = Math.min(0.1, (timestamp - lastTimestamp) / 1000);
+    lastTimestamp = timestamp;
+
+    updateAndRender(dt);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // --- USER INTERFACE EVENTS ---
+  const playBtn = document.getElementById('playBtn');
+  const soundBtn = document.getElementById('soundBtn');
+  const scrubber = document.getElementById('scrubber');
+
+  playBtn.addEventListener('click', () => {
+    isPlaying = !isPlaying;
+    playBtn.innerHTML = isPlaying ? '⏸ Pause' : '▶ Play';
+  });
+
+  soundBtn.addEventListener('click', () => {
+    sfx.init();
+    sfx.muted = !sfx.muted;
+    soundBtn.innerHTML = sfx.muted ? '🔇 Sound Off' : '🔊 Sound On';
+    soundBtn.classList.toggle('active', !sfx.muted);
+  });
+
+  scrubber.addEventListener('input', () => {
+    isPlaying = false;
+    playBtn.innerHTML = '▶ Play';
+  });
+
+  // Poke the cat on click
+  canvas.addEventListener('click', (e) => {
+    sfx.init();
+    sfx.pop();
+  });
+
+  // Cat Breed Selector
+  document.querySelectorAll('.breed-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.breed-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const breedKey = btn.dataset.breed;
+      currentBreed = BREEDS[breedKey];
+    });
+  });
+</script>
+</body>
+</html>

@@ -39,6 +39,10 @@ MODELS = [
 # Not served by cli-proxy; run through Cursor's `agent` CLI under the same id.
 CURSOR_MODELS = {"grok-4.7-high", "muse-spark-1.3-high", "kimi-k3-high", "glm-5.2-high"}
 
+# Hand fixes applied to pages/<model>.html after extraction (raw/ stays untouched).
+# Re-running a model overwrites its page, so re-apply or drop the entry.
+PATCHES = {"claude-opus-5": "patched: second top-level `const BR` renamed (was a SyntaxError)"}
+
 PROMPT = """Can you make me an animation of a cartoonish cat being "liquid"? I.e. going into a narrow
     tube like liquid and coming out
           ; not with current renderer; just an svg or something similar Format should be
@@ -142,7 +146,8 @@ def build_viewer():
     tpl = (HERE / "viewer.template.html").read_text()
     order = [m for m in MODELS if m in results] + sorted(set(results) - set(MODELS))
     data = [{"model": m, **results[m], "route": "cursor" if m in CURSOR_MODELS else "proxy",
-             "cost": api_cost(m, results[m], prices), "price": prices.get(m)} for m in order]
+             "cost": api_cost(m, results[m], prices), "price": prices.get(m),
+             "patch": PATCHES.get(m)} for m in order]
     if not PUBLISH_USAGE:
         data = [{k: v for k, v in r.items() if k not in USAGE_KEYS} for r in data]
     (HERE / "index.html").write_text(tpl.replace("/*RESULTS*/[]", json.dumps(data, indent=1)))

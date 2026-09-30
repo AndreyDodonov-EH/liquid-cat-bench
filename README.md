@@ -14,7 +14,7 @@ Can you make me an animation of a cartoonish cat being "liquid"? I.e. going into
 - One attempt per model, reasoning effort high, no output cap.
 - Via CLIProxyAPI (`/v1/chat/completions`, no tools); Grok, Muse Spark, Kimi, GLM via Cursor `agent --mode ask`.
 - Claude requests carry the proxy's Claude Code system prompt; Cursor adds its own agent prompt.
-- Pages are unmodified model output.
+- Pages are unmodified model output, except claude-opus-5: a duplicate `const BR` renamed.
 
 ```
 python3 run.py [model ...]   # needs CLIProxyAPI on :8317, Cursor agent CLI

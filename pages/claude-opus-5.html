@@ -501,7 +501,7 @@ const blob=(()=>{ const S=64,c=document.createElement('canvas'); c.width=c.heigh
   g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(0.62,'rgba(255,255,255,1)');
   g.addColorStop(1,'rgba(255,255,255,0)');
   x.fillStyle=g; x.fillRect(0,0,S,S); return c; })();
-const BR=9;
+const BLOB_R=9;
 
 function poly(ctx,arr,rev){ if(rev){for(let i=arr.length-1;i>=0;i--) ctx.lineTo(arr[i][0],arr[i][1]);}
                             else   {for(let i=0;i<arr.length;i++)  ctx.lineTo(arr[i][0],arr[i][1]);} }
@@ -571,7 +571,7 @@ function drawBg(){
 function drawLiquid(){
   const c=gctx;
   c.clearRect(-500,-500,2600,2200);
-  for(let i=0;i<N;i++){ const p=P[i]; c.drawImage(blob,p.x-BR,p.y-BR,BR*2,BR*2); }
+  for(let i=0;i<N;i++){ const p=P[i]; c.drawImage(blob,p.x-BLOB_R,p.y-BLOB_R,BLOB_R*2,BLOB_R*2); }
   const b=bounds();
   const g=c.createLinearGradient(0,b.y0-12,0,b.y1+12);
   g.addColorStop(0,'#ffdf9a'); g.addColorStop(0.34,'#ffb14a'); g.addColorStop(1,'#e8711b');

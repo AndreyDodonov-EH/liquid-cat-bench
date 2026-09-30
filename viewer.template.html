@@ -50,19 +50,20 @@
   .stats a { color: var(--accent); }
   .frame { flex: 1; position: relative; min-height: 0; }
   iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
-  #table { flex: 1; overflow: auto; padding: 12px 16px; }
-  #table[hidden] { display: none; }
-  #table table { border-collapse: collapse; width: 100%; max-width: 1100px;
-    font-variant-numeric: tabular-nums; }
-  #table th, #table td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: right;
-    white-space: nowrap; }
-  #table th:first-child, #table td:first-child, #table th.l, #table td.l { text-align: left; }
-  #table th { cursor: pointer; user-select: none; color: var(--muted); font-weight: 600;
-    position: sticky; top: 0; background: var(--bg); }
-  #table th.sorted { color: var(--text); }
-  #table tbody tr { cursor: pointer; }
-  #table tbody tr:hover { background: var(--panel); }
-  #table .note { color: var(--muted); font-size: 12px; margin-top: 10px; max-width: 1100px; }
+  #grid { flex: 1; overflow: auto; padding: 16px; display: grid; gap: 16px; align-content: start;
+    grid-auto-rows: max-content;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+  #grid[hidden] { display: none; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    cursor: zoom-in; padding: 0; text-align: left; display: flex; flex-direction: column; }
+  .tile:hover { border-color: var(--accent); }
+  .tile .cap { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px;
+    font-size: 12px; border-bottom: 1px solid var(--line); }
+  .tile .cap span { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tile .box { position: relative; width: 100%; aspect-ratio: 3 / 2; flex: none; overflow: hidden; background: #fff; }
+  /* Pages render at a fixed desktop size and are scaled down, so every layout matches the full view. */
+  .tile .box iframe { inset: auto; left: 0; top: 0; width: 1200px; height: 800px;
+    transform-origin: 0 0; pointer-events: none; }
   .fail { position: absolute; inset: 0; padding: 24px; color: var(--bad); white-space: pre-wrap;
     overflow: auto; font: 12px/1.5 ui-monospace, monospace; }
 </style>
@@ -71,10 +72,10 @@
 <header>
   <h1>Liquid Cat Bench</h1>
   <span class="prompt" id="prompt"></span>
-  <label class="toggle"><input type="checkbox" id="tableBox"> Table</label>
+  <label class="toggle"><input type="checkbox" id="gridBox"> All</label>
   <label class="toggle"><input type="checkbox" id="split"> Side by side</label>
 </header>
-<section id="table" hidden></section>
+<section id="grid" hidden></section>
 <main id="main">
   <section class="pane" id="paneA"></section>
   <section class="pane" id="paneB" hidden></section>
@@ -107,6 +108,7 @@ function statsHtml(r) {
     (r.route === 'cursor' ? ' (output only)' : ''));
   if (r.route === 'cursor') parts.push('via Cursor');
   if (r.html_bytes) parts.push(`${(r.html_bytes / 1024).toFixed(1)} KB html`);
+  if (r.patch) parts.push(`<b>${r.patch}</b>`);
   if (r.finish && r.finish !== 'stop' && r.finish !== 'end_turn') parts.push(`finish: ${r.finish}`);
   parts.push(`<a href="raw/${encodeURIComponent(r.model)}.md" target="_blank">raw reply</a>`);
   if (r.ok) parts.push(`<a href="pages/${encodeURIComponent(r.model)}.html" target="_blank">open</a>`);
@@ -158,6 +160,7 @@ const splitBox = document.getElementById('split');
 const paneBEl = document.getElementById('paneB');
 
 function saveHash() {
+  if (gridBox.checked) return history.replaceState(null, '', '#all');
   const h = [A.index];
   if (splitBox.checked) h.push(B.index);
   history.replaceState(null, '', '#' + h.map(i => encodeURIComponent(RESULTS[i].model)).join(','));
@@ -177,58 +180,68 @@ splitBox.onchange = () => {
   if (splitBox.checked) B.show((A.index + 1) % RESULTS.length); else saveHash();
 };
 
-const COLS = [
-  ['Model', r => r.model, r => r.model],
-  ['Route', r => r.route, r => r.route, 'l'],
-  ['Time', r => r.seconds, r => r.seconds != null ? `${Math.round(r.seconds)} s` : ''],
-  ['Out tokens', r => r.out_tokens, r => r.out_tokens != null ? r.out_tokens.toLocaleString() : ''],
-  ['of which reasoning', r => r.reasoning_tokens, r => r.reasoning_tokens ? r.reasoning_tokens.toLocaleString() : ''],
-  ['Tok/s', r => r.out_tokens && r.seconds ? r.out_tokens / r.seconds : null,
-    r => r.out_tokens && r.seconds ? Math.round(r.out_tokens / r.seconds) : ''],
-  ['API price', r => r.cost, r => usd(r.cost)],
-  ['HTML', r => r.html_bytes, r => r.html_bytes ? `${(r.html_bytes / 1024).toFixed(1)} KB` : ''],
-];
-// Columns with no data (e.g. usage left out of a published build) are dropped.
-const shown = COLS.filter(c => RESULTS.some(r => c[1](r) != null));
-COLS.splice(0, COLS.length, ...shown);
-let sortCol = COLS.findIndex(c => c[0] === 'Time'), sortDir = 1;
-const tableEl = document.getElementById('table');
-const tableBox = document.getElementById('tableBox');
+const gridEl = document.getElementById('grid');
+const gridBox = document.getElementById('gridBox');
+const TILE_W = 1200;
+const fit = new ResizeObserver(entries => entries.forEach(e => {
+  const f = e.target.querySelector('iframe');
+  if (f) f.style.transform = `scale(${e.contentRect.width / TILE_W})`;
+}));
 
-function renderTable() {
-  const rows = RESULTS.map((r, i) => i).sort((a, b) => {
-    const va = COLS[sortCol][1](RESULTS[a]), vb = COLS[sortCol][1](RESULTS[b]);
-    if (va == null) return 1; if (vb == null) return -1;
-    return (va < vb ? -1 : va > vb ? 1 : 0) * sortDir;
-  });
-  tableEl.innerHTML = `<table><thead><tr>${COLS.map((c, i) =>
-    `<th data-c="${i}" class="${c[3] || ''}${i === sortCol ? ' sorted' : ''}">${c[0]}${i === sortCol ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(i => `<tr data-i="${i}">${COLS.map(c =>
-      `<td class="${c[3] || ''}">${c[2](RESULTS[i])}</td>`).join('')}</tr>`).join('')}</tbody></table>
-    <p class="note">Reasoning effort high, no output cap.${RESULTS.some(r => r.cost != null) ?
-    ` API price = list price × tokens (reasoning billed as output); Cursor-routed models count output only,
-    since their input is mostly Cursor's agent prompt. Tok/s includes queueing and thinking time.` : ''}
-    Click a row to open it.</p>`;
-  tableEl.querySelectorAll('th').forEach(th => th.onclick = () => {
-    const c = +th.dataset.c;
-    sortDir = c === sortCol ? -sortDir : 1; sortCol = c; renderTable();
-  });
-  tableEl.querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => {
-    setTable(false); A.show(+tr.dataset.i);
+function renderGrid() {
+  gridEl.innerHTML = '';
+  RESULTS.forEach((r, i) => {
+    const tile = document.createElement('button');
+    tile.className = 'tile';
+    tile.title = `Open ${r.model}`;
+    tile.innerHTML = `<div class="cap"><b></b><span>${r.seconds != null ? Math.round(r.seconds) + 's' : ''}</span></div>
+      <div class="box"></div>`;
+    tile.querySelector('b').textContent = r.model + (r.patch ? ' (patched)' : '');
+    const box = tile.querySelector('.box');
+    if (r.ok) {
+      const f = document.createElement('iframe');
+      f.sandbox = 'allow-scripts';
+      f.loading = 'lazy';
+      f.tabIndex = -1;
+      f.src = `pages/${encodeURIComponent(r.model)}.html`;
+      box.appendChild(f);
+      fit.observe(box);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'fail';
+      d.textContent = r.error || 'failed';
+      box.appendChild(d);
+    }
+    tile.onclick = () => { setGrid(false); setSplit(false); A.show(i); };
+    gridEl.appendChild(tile);
   });
 }
-function setTable(on) {
-  tableBox.checked = on;
-  tableEl.hidden = !on;
+function setGrid(on) {
+  gridBox.checked = on;
+  gridEl.hidden = !on;
   main.hidden = on;
-  if (on) renderTable();
+  if (on) {
+    // Only one set of pages animates at a time.
+    main.querySelectorAll('.frame').forEach(f => f.innerHTML = '');
+    renderGrid();
+    saveHash();
+  } else {
+    fit.disconnect();
+    gridEl.innerHTML = '';
+  }
 }
-tableBox.onchange = () => setTable(tableBox.checked);
+gridBox.onchange = () => {
+  setGrid(gridBox.checked);
+  if (!gridBox.checked) { A.show(A.index); if (splitBox.checked) B.show(B.index); }
+};
 
 const find = name => Math.max(0, RESULTS.findIndex(r => r.model === decodeURIComponent(name)));
 const want = location.hash.slice(1).split(',').filter(Boolean);
-A.show(want[0] ? find(want[0]) : 0);
-if (want[1]) { setSplit(true); B.show(find(want[1])); }
+if (want[0] === 'all') setGrid(true);
+else {
+  A.show(want[0] ? find(want[0]) : 0);
+  if (want[1]) { setSplit(true); B.show(find(want[1])); }
+}
 </script>
 </body>
 </html>

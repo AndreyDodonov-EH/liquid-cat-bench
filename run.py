@@ -139,6 +139,29 @@ def api_cost(model, stats, prices):
     return round((tok_in * (pr.get("in") or 0) + stats["out_tokens"] * pr["out"]) / 1e6, 4)
 
 
+# native.sh lanes: CLI model id -> bench id it is compared with.
+NATIVE_IDS = {"claude-opus-5-thinking-high": "claude-opus-5"}
+
+
+def insert_native(data):
+    """Add native-agent runs (native/<cli>/<model>/) right after their single-shot entry."""
+    for run_json in sorted((HERE / "native").glob("*/*/run.json")):
+        d = run_json.parent
+        cli, model = d.parent.name, d.name
+        bench_id = NATIVE_IDS.get(model, model)
+        pages = sorted((d / "work").rglob("*.html"), key=lambda f: f.stat().st_size)
+        r = json.loads(run_json.read_text())
+        entry = {"model": f"{bench_id} ({cli} agent)", "route": f"{cli} agent", "ok": bool(pages),
+                 "seconds": r.get("seconds"), "html_bytes": pages[-1].stat().st_size if pages else 0,
+                 "src": str(pages[-1].relative_to(HERE)) if pages else None,
+                 "raw": str((d / "stdout.jsonl").relative_to(HERE))}
+        if not pages:
+            entry["error"] = f"no HTML file written (exit {r.get('exit')})"
+        at = next((i + 1 for i, e in enumerate(data) if e["model"] == bench_id), len(data))
+        data.insert(at, entry)
+    return data
+
+
 def build_viewer():
     results = {f.stem: json.loads(f.read_text()) for f in (HERE / "stats").glob("*.json")}
     prices_path = HERE / "prices.json"
@@ -148,6 +171,7 @@ def build_viewer():
     data = [{"model": m, **results[m], "route": "cursor" if m in CURSOR_MODELS else "proxy",
              "cost": api_cost(m, results[m], prices), "price": prices.get(m),
              "patch": PATCHES.get(m)} for m in order]
+    data = insert_native(data)
     if not PUBLISH_USAGE:
         data = [{k: v for k, v in r.items() if k not in USAGE_KEYS} for r in data]
     (HERE / "index.html").write_text(tpl.replace("/*RESULTS*/[]", json.dumps(data, indent=1)))

@@ -1,0 +1,3 @@
+[Open the liquid cat animation](/tmp/work/liquid-cat.html)
+
+A self-contained HTML file with SVG and JavaScript: the cat melts, flows through a transparent tube, and reforms with a wobble. Includes pause, replay, speed controls, and scrubbing. Works offline.

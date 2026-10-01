@@ -143,6 +143,15 @@ const RESULTS = [
   "patch": "patched: second top-level `const BR` renamed (was a SyntaxError)"
  },
  {
+  "model": "claude-opus-5 (cursor agent)",
+  "route": "cursor agent",
+  "ok": true,
+  "seconds": 2087.6,
+  "html_bytes": 33420,
+  "src": "native/cursor/claude-opus-5-thinking-high/work/liquid-cat.html",
+  "raw": "native/cursor/claude-opus-5-thinking-high/stdout.jsonl"
+ },
+ {
   "model": "claude-opus-4-8",
   "ok": true,
   "effort": "high",
@@ -181,6 +190,15 @@ const RESULTS = [
   "html_bytes": 17546,
   "route": "proxy",
   "patch": null
+ },
+ {
+  "model": "gpt-6-astra (codex agent)",
+  "route": "codex agent",
+  "ok": true,
+  "seconds": 483,
+  "html_bytes": 17115,
+  "src": "native/codex/gpt-6-astra/work/liquid-cat.html",
+  "raw": "native/codex/gpt-6-astra/stdout.jsonl"
  },
  {
   "model": "gpt-6-luna",
@@ -278,6 +296,9 @@ const PROMPT = 'Can you make me an animation of a cartoonish cat being "liquid"?
 document.getElementById('prompt').textContent = PROMPT;
 document.getElementById('prompt').title = PROMPT;
 
+// Native-agent entries carry their own paths; single-shot ones live in pages/ and raw/.
+const pageSrc = r => r.src || `pages/${encodeURIComponent(r.model)}.html`;
+const rawSrc = r => r.raw || `raw/${encodeURIComponent(r.model)}.md`;
 const kTok = n => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
 const usd = c => c == null ? '' : c < 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(3)}`;
 
@@ -301,8 +322,8 @@ function statsHtml(r) {
   if (r.html_bytes) parts.push(`${(r.html_bytes / 1024).toFixed(1)} KB html`);
   if (r.patch) parts.push(`<b>${r.patch}</b>`);
   if (r.finish && r.finish !== 'stop' && r.finish !== 'end_turn') parts.push(`finish: ${r.finish}`);
-  parts.push(`<a href="raw/${encodeURIComponent(r.model)}.md" target="_blank">raw reply</a>`);
-  if (r.ok) parts.push(`<a href="pages/${encodeURIComponent(r.model)}.html" target="_blank">open</a>`);
+  parts.push(`<a href="${rawSrc(r)}" target="_blank">raw reply</a>`);
+  if (r.ok) parts.push(`<a href="${pageSrc(r)}" target="_blank">open</a>`);
   return parts.join(' · ');
 }
 
@@ -329,7 +350,7 @@ function makePane(el, onChange) {
     if (r.ok) {
       const f = document.createElement('iframe');
       f.sandbox = 'allow-scripts';
-      f.src = `pages/${encodeURIComponent(r.model)}.html`;
+      f.src = pageSrc(r);
       frame.appendChild(f);
     } else {
       const d = document.createElement('div');
@@ -394,7 +415,7 @@ function renderGrid() {
       f.sandbox = 'allow-scripts';
       f.loading = 'lazy';
       f.tabIndex = -1;
-      f.src = `pages/${encodeURIComponent(r.model)}.html`;
+      f.src = pageSrc(r);
       box.appendChild(f);
       fit.observe(box);
     } else {

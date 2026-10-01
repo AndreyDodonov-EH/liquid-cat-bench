@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liquid Cat — viscosity test</title>
+<style>
+  :root{
+    --ink:#e8ecf7;
+    --dim:#7c87a8;
+    --accent:#ff9f4a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:#070910;
+    color:var(--ink);
+    font:14px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;
+    overflow:hidden;
+  }
+  header{
+    position:absolute;top:18px;left:24px;z-index:5;pointer-events:none;
+  }
+  header h1{
+    margin:0;font-size:13px;letter-spacing:.34em;text-transform:uppercase;
+    font-weight:600;color:var(--ink);opacity:.9;
+  }
+  header p{
+    margin:4px 0 0;font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--dim);
+  }
+  .stage{flex:1;position:relative;min-height:0}
+  canvas{display:block;width:100%;height:100%}
+  .controls{
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+    padding:12px 22px 16px;
+    background:linear-gradient(180deg,rgba(7,9,16,0) 0%,rgba(7,9,16,.9) 40%);
+  }
+  button{
+    font:inherit;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink);background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.14);border-radius:999px;
+    padding:7px 16px;cursor:pointer;transition:.15s;
+    min-width:84px;
+  }
+  button:hover{background:rgba(255,159,74,.16);border-color:rgba(255,159,74,.45)}
+  label{
+    display:flex;align-items:center;gap:9px;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);
+  }
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:132px;height:3px;border-radius:3px;
+    background:rgba(255,255,255,.16);outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 10px rgba(255,159,74,.65);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:13px;height:13px;border:0;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 10px rgba(255,159,74,.65);
+  }
+  .hint{margin-left:auto;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#4d566f}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Liquid Cat</h1>
+  <p>viscosity test &mdash; specimen 07</p>
+</header>
+
+<div class="stage"><canvas id="c"></canvas></div>
+
+<div class="controls">
+  <button id="play">Pause</button>
+  <label>Speed <input id="speed" type="range" min="0.2" max="2" step="0.05" value="1"></label>
+  <label>Tube <input id="bore" type="range" min="10" max="70" step="1" value="22"></label>
+  <label>Scrub <input id="scrub" type="range" min="0" max="1000" step="1" value="0"></label>
+  <span class="hint">space = play / pause</span>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============================================================
+   0. tiny math helpers
+   ============================================================ */
+const TAU = Math.PI * 2;
+const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
+const lerp  = (a,b,t)=> a+(b-a)*t;
+const smooth= t=>{ t=clamp(t,0,1); return t*t*(3-2*t); };
+
+/* catmull-rom point */
+function cr(p0,p1,p2,p3,t){
+  const t2=t*t, t3=t2*t;
+  return [
+    0.5*(2*p1[0] + (-p0[0]+p2[0])*t + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2 + (-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
+    0.5*(2*p1[1] + (-p0[1]+p2[1])*t + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2 + (-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)
+  ];
+}
+function crClosed(p, per=7){
+  const n=p.length, out=[];
+  for(let i=0;i<n;i++){
+    const p0=p[(i-1+n)%n], p1=p[i], p2=p[(i+1)%n], p3=p[(i+2)%n];
+    for(let j=0;j<per;j++) out.push(cr(p0,p1,p2,p3,j/per));
+  }
+  return out;
+}
+function crOpen(p, per=9){
+  const n=p.length, out=[p[0].slice()];
+  for(let i=0;i<n-1;i++){
+    const p0=p[Math.max(0,i-1)], p1=p[i], p2=p[i+1], p3=p[Math.min(n-1,i+2)];
+    for(let j=1;j<=per;j++) out.push(cr(p0,p1,p2,p3,j/per));
+  }
+  return out;
+}
+function ellipsePts(cx,cy,rx,ry,rot=0,n=40){
+  const out=[], c=Math.cos(rot), s=Math.sin(rot);
+  for(let i=0;i<n;i++){
+    const a=i/n*TAU, x=Math.cos(a)*rx, y=Math.sin(a)*ry;
+    out.push([cx+x*c-y*s, cy+x*s+y*c]);
+  }
+  return out;
+}
+/* a stroke-with-round-caps turned into a closed polygon */
+function thickCurve(ctl,w0,w1,per=9){
+  const pts = ctl.length===2
+    ? (()=>{ const o=[]; for(let i=0;i<=12;i++){const t=i/12; o.push([lerp(ctl[0][0],ctl[1][0],t), lerp(ctl[0][1],ctl[1][1],t)]);} return o; })()
+    : crOpen(ctl, per);
+  const n=pts.length, left=[], right=[], tang=[];
+  for(let i=0;i<n;i++){
+    const a=pts[Math.max(0,i-1)], b=pts[Math.min(n-1,i+1)];
+    let tx=b[0]-a[0], ty=b[1]-a[1];
+    const d=Math.hypot(tx,ty)||1; tx/=d; ty/=d; tang.push([tx,ty]);
+    const w=lerp(w0,w1,i/(n-1))/2;
+    left.push ([pts[i][0]-ty*w, pts[i][1]+tx*w]);
+    right.push([pts[i][0]+ty*w, pts[i][1]-tx*w]);
+  }
+  const cap=(c,r,a0)=>{ const o=[]; for(let i=1;i<10;i++){const a=a0-Math.PI*i/10; o.push([c[0]+Math.cos(a)*r, c[1]+Math.sin(a)*r]);} return o; };
+  const thE=Math.atan2(tang[n-1][1],tang[n-1][0]);
+  const thS=Math.atan2(tang[0][1],tang[0][0]);
+  const poly = left.slice();
+  poly.push(...cap(pts[n-1], w1/2, thE+Math.PI/2));
+  for(let i=n-1;i>=0;i--) poly.push(right[i]);
+  poly.push(...cap(pts[0], w0/2, thS-Math.PI/2));
+  return poly;
+}
+const capsule=(x1,y1,x2,y2,r)=> thickCurve([[x1,y1],[x2,y2]], r*2, r*2);
+
+/* ============================================================
+   1. palette
+   ============================================================ */
+const C = {
+  fur:'#ffa352', furMid:'#f4862f', furDark:'#dd6d23', furDeep:'#c25a1b',
+  cream:'#ffe4bd', outline:'#2b1428', pink:'#ff93a9', pinkDeep:'#e06a85',
+  eyeW:'#fff8ee', eyeD:'#2b1428',
+  glass:'rgba(166,204,255,0.085)', glassEdge:'rgba(196,226,255,0.34)',
+  inner:'rgba(4,6,14,0.62)', metal:'#93a7c7'
+};
+
+/* ============================================================
+   2. the cat, drawn in its own local coordinate sheet
+      (x grows toward the nose, y grows downward)
+   ============================================================ */
+const SHEET = {
+  body:[[34,-4],[42,-30],[70,-46],[112,-52],[150,-50],[182,-40],[202,-16],[206,12],
+        [198,36],[172,50],[130,57],[88,57],[54,46],[36,22]],
+  head:[[208,-80],[238,-70],[259,-46],[263,-16],[253,8],[226,19],[196,16],[173,2],
+        [165,-26],[172,-56],[187,-73]],
+  earFar :[[186,-68],[180,-96],[191,-120],[191,-120],[209,-92],[214,-72]],
+  earNear:[[227,-68],[231,-98],[247,-118],[247,-118],[258,-88],[253,-64]],
+  tail:[[58,-6],[30,4],[8,-16],[6,-52],[22,-70]]
+};
+
+/* shrink a polygon toward its centroid (used for inner ears) */
+function shrink(pts,k,dx=0,dy=0){
+  let cx=0,cy=0; for(const p of pts){cx+=p[0];cy+=p[1];}
+  cx/=pts.length; cy/=pts.length;
+  return pts.map(p=>[cx+(p[0]-cx)*k+dx, cy+(p[1]-cy)*k+dy]);
+}
+
+let OX=0, OY=0;            // normalisation offset (filled in below)
+const shift = pts => pts.map(p=>[p[0]+OX, p[1]+OY]);
+
+/* builds every polygon of the cat for a given pose */
+function buildCat(st){
+  const sway = st.tailSway;
+  const mass=[], detail=[], face=[];
+
+  /* --- tail (sways at rest) --- */
+  const base = SHEET.tail[0];
+  const tctl = SHEET.tail.map((p,i)=>{
+    const f=i/(SHEET.tail.length-1), a=sway*f*f;
+    const dx=p[0]-base[0], dy=p[1]-base[1];
+    return [base[0]+dx*Math.cos(a)-dy*Math.sin(a), base[1]+dx*Math.sin(a)+dy*Math.cos(a)];
+  });
+  const tail = thickCurve(tctl, 18, 11);
+  mass.push({p:tail, c:C.furDark});
+
+  /* --- far limbs --- */
+  mass.push({p:capsule(70,14,60,46,15), c:C.furDeep});
+  mass.push({p:ellipsePts(58,50,17,10,-0.18), c:C.furDeep});
+  mass.push({p:capsule(180,16,176,46,13), c:C.furDeep});
+  mass.push({p:ellipsePts(175,50,15,9,-0.1), c:C.furDeep});
+
+  /* --- far ear --- */
+  const earF = crClosed(SHEET.earFar,8);
+  mass.push({p:earF, c:C.furDark});
+
+  /* --- body + head --- */
+  mass.push({p:crClosed(SHEET.body,8), c:C.furMid});
+  mass.push({p:crClosed(SHEET.head,8), c:C.fur});
+
+  /* --- near ear --- */
+  const earN = crClosed(SHEET.earNear,8);
+  mass.push({p:earN, c:C.fur});
+
+  /* --- muzzle --- */
+  mass.push({p:ellipsePts(246,-2,30,19,0.06), c:C.cream});
+
+  /* --- near limbs --- */
+  mass.push({p:capsule(84,14,74,52,17), c:C.furMid});
+  mass.push({p:ellipsePts(74,57,19,11,-0.16), c:C.furMid});
+  mass.push({p:capsule(196,16,192,52,14), c:C.fur});
+  mass.push({p:ellipsePts(193,57,16,10,-0.08), c:C.fur});
+
+  /* --- markings (clipped to the silhouette) --- */
+  detail.push({p:ellipsePts(118,32,60,25), c:C.cream, a:0.85});
+  detail.push({p:ellipsePts(200,14,26,20), c:C.cream, a:0.7});
+  detail.push({p:thickCurve([[62,-46],[73,-28],[66,-6]],15,13), c:C.furDeep, a:0.6});
+  detail.push({p:thickCurve([[92,-54],[103,-34],[96,-10]],16,14), c:C.furDeep, a:0.6});
+  detail.push({p:thickCurve([[124,-55],[135,-36],[128,-12]],15,13), c:C.furDeep, a:0.6});
+  detail.push({p:thickCurve([[196,-64],[207,-48]],10,10), c:C.furDeep, a:0.5});
+  detail.push({p:thickCurve([[214,-72],[223,-56]],10,10), c:C.furDeep, a:0.5});
+  detail.push({p:thickCurve([[-2,-30],[22,-28]],13,13), c:C.furDeep, a:0.65});
+  detail.push({p:thickCurve([[-1,-54],[23,-57]],12,12), c:C.furDeep, a:0.65});
+  detail.push({p:shrink(earF,0.52,1,6), c:C.pink, a:0.75});
+  detail.push({p:shrink(earN,0.52,-1,7), c:C.pink, a:0.9});
+  detail.push({p:ellipsePts(214,-8,15,8), c:C.pinkDeep, a:0.2});
+  detail.push({p:ellipsePts(252,-6,13,7), c:C.pinkDeep, a:0.2});
+
+  /* --- face --- */
+  const eyes=[{x:208,y:-33,rx:11.5,ry:13.5},{x:242,y:-29,rx:13,ry:15}];
+  const blink = st.blink;                       // 0 open .. 1 shut
+  const wide  = st.wide;                        // 0 calm .. 1 panicking
+  for(const e of eyes){
+    const ry = e.ry*(1-blink)*lerp(1,1.18,wide);
+    const rx = e.rx*lerp(1,1.12,wide);
+    if(blink>0.82){
+      face.push({p:thickCurve([[e.x-rx,e.y],[e.x,e.y+2],[e.x+rx,e.y]],4,4), c:C.eyeD, a:1});
+    }else{
+      face.push({p:ellipsePts(e.x,e.y,rx,Math.max(ry,0.6)), c:C.eyeW, a:1, ring:true});
+      const pr = lerp(1,0.42,wide);
+      face.push({p:ellipsePts(e.x+2, e.y+1, 4.4*pr*lerp(1,1.5,wide), Math.min(10.5,ry*0.78)), c:C.eyeD, a:1});
+      face.push({p:ellipsePts(e.x-3.6, e.y-5, 3.4, Math.min(3.4,ry*0.4)), c:'#ffffff', a:0.92});
+    }
+  }
+  face.push({p:crClosed([[258,-9],[273,-9],[266,3],[266,3]],7), c:C.pinkDeep, a:1, fade:true});
+  if(wide<0.55){
+    face.push({p:thickCurve([[266,4],[260,11],[251,8]],3.4,3), c:C.eyeD, a:(1-wide/0.55), fade:true});
+    face.push({p:thickCurve([[266,4],[272,10],[280,6]],3.4,3), c:C.eyeD, a:(1-wide/0.55), fade:true});
+  }
+  if(wide>0.3){
+    face.push({p:ellipsePts(266,8,6.5,8), c:C.eyeD, a:(wide-0.3)/0.7, fade:true});
+  }
+  return {mass, detail, face};
+}
+
+/* --- normalise the sheet so x ∈ [0,L] and y ∈ [-H,H] --- */
+let CAT_L=0, CAT_H=0;
+(function normalise(){
+  const probe = buildCat({tailSway:0, blink:0, wide:0});
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  for(const part of probe.mass) for(const p of part.p){
+    if(p[0]<x0)x0=p[0]; if(p[0]>x1)x1=p[0];
+    if(p[1]<y0)y0=p[1]; if(p[1]>y1)y1=p[1];
+  }
+  OX = -x0;
+  OY = -(y0+y1)/2;
+  CAT_L = x1-x0;
+  CAT_H = (y1-y0)/2;
+})();
+
+/* --- vertical envelope of the silhouette, per material column.
+       this is what lets the cat *fill* the tube instead of merely
+       being scaled down inside it. --- */
+const ENV_STEP = 2;
+const ENV_N = Math.ceil(CAT_L/ENV_STEP)+1;
+const ENV_C = new Float32Array(ENV_N);
+const ENV_H = new Float32Array(ENV_N);
+(function buildEnvelope(){
+  const lo=new Float32Array(ENV_N).fill(1e9), hi=new Float32Array(ENV_N).fill(-1e9);
+  const probe = buildCat({tailSway:0, blink:0, wide:0});
+  for(const part of probe.mass){
+    const p = shift(part.p);
+    for(let i=0;i<p.length;i++){
+      const a=p[i], b=p[(i+1)%p.length];
+      const steps = Math.max(1, Math.ceil(Math.abs(b[0]-a[0])/ENV_STEP));
+      for(let k=0;k<=steps;k++){
+        const u=k/steps;
+        const idx = clamp(Math.round(lerp(a[0],b[0],u)/ENV_STEP),0,ENV_N-1);
+        const y = lerp(a[1],b[1],u);
+        if(y<lo[idx])lo[idx]=y;
+        if(y>hi[idx])hi[idx]=y;
+      }
+    }
+  }
+  /* fill gaps */
+  let last=-1;
+  for(let i=0;i<ENV_N;i++){
+    if(lo[i]<1e8){ if(last>=0 && i-last>1) for(let j=last+1;j<i;j++){
+      const u=(j-last)/(i-last); lo[j]=lerp(lo[last],lo[i],u); hi[j]=lerp(hi[last],hi[i],u);
+    } last=i; }
+  }
+  for(let i=0;i<ENV_N;i++) if(lo[i]>1e8){ lo[i]=-8; hi[i]=8; }
+  /* smooth a little */
+  for(let pass=0;pass<4;pass++){
+    const l2=lo.slice(), h2=hi.slice();
+    for(let i=1;i<ENV_N-1;i++){
+      lo[i]=(l2[i-1]+2*l2[i]+l2[i+1])/4;
+      hi[i]=(h2[i-1]+2*h2[i]+h2[i+1])/4;
+    }
+  }
+  for(let i=0;i<ENV_N;i++){
+    ENV_C[i]=(lo[i]+hi[i])/2;
+    ENV_H[i]=Math.max(2,(hi[i]-lo[i])/2);
+  }
+})();
+/* columns thinner than this don't get inflated to the full bore — that is what
+   keeps the nose and the tail tapered instead of chopped flat */
+const ENV_FLOOR = CAT_H*0.40;
+function envAt(q,out){
+  const f = clamp(q,0,CAT_L)/ENV_STEP;
+  const i = Math.min(ENV_N-2, Math.floor(f)), u = f-i;
+  const h = lerp(ENV_H[i],ENV_H[i+1],u);
+  out[0]=lerp(ENV_C[i],ENV_C[i+1],u);
+  out[1]=Math.max(h,ENV_FLOOR);          // reference half-thickness
+  out[2]=Math.min(1,h/ENV_FLOOR);        // how much of the bore this column fills
+}
+const envFill=(q)=>{ const e=[0,0,0]; envAt(q,e); return e[2]; };
+
+/* ============================================================
+   3. the pipe's centre line, built with a little turtle
+   ============================================================ */
+function buildSpine(){
+  const raw=[]; let x=0,y=0,th=0;
+  raw.push([x,y]);
+  const F=(len)=>{ const n=Math.ceil(len/2);
+    for(let i=1;i<=n;i++){ x+=Math.cos(th)*len/n; y+=Math.sin(th)*len/n; raw.push([x,y]); } };
+  const T=(deg,R)=>{ const d=deg*Math.PI/180, sg=Math.sign(d);
+    const px = sg>0 ? -Math.sin(th) :  Math.sin(th);
+    const py = sg>0 ?  Math.cos(th) : -Math.cos(th);
+    const cx=x+R*px, cy=y+R*py;
+    const phi=Math.atan2(y-cy,x-cx);
+    const n=Math.ceil(Math.abs(d)*R/2);
+    for(let i=1;i<=n;i++){ const a=phi+d*i/n; x=cx+R*Math.cos(a); y=cy+R*Math.sin(a); raw.push([x,y]); }
+    th+=d;
+  };
+  F(430); T(-90,95); F(300); T(90,95); F(170); T(90,95); F(300); T(-90,95); F(430);
+
+  /* resample to exactly 1 unit of arc length per sample */
+  const cum=[0];
+  for(let i=1;i<raw.length;i++) cum.push(cum[i-1]+Math.hypot(raw[i][0]-raw[i-1][0], raw[i][1]-raw[i-1][1]));
+  const total=Math.floor(cum[cum.length-1]);
+  const X=new Float64Array(total+1), Y=new Float64Array(total+1);
+  let j=0;
+  for(let s=0;s<=total;s++){
+    while(j<cum.length-2 && cum[j+1]<s) j++;
+    const u=(s-cum[j])/Math.max(1e-6,cum[j+1]-cum[j]);
+    X[s]=lerp(raw[j][0],raw[j+1][0],u);
+    Y[s]=lerp(raw[j][1],raw[j+1][1],u);
+  }
+  const TX=new Float64Array(total+1), TY=new Float64Array(total+1);
+  for(let s=0;s<=total;s++){
+    const a=Math.max(0,s-1), b=Math.min(total,s+1);
+    let tx=X[b]-X[a], ty=Y[b]-Y[a];
+    const d=Math.hypot(tx,ty)||1; TX[s]=tx/d; TY[s]=ty/d;
+  }
+  return {X,Y,TX,TY,S:total};
+}
+const SP = buildSpine();
+
+/* funnel placement */
+const F0 = 320, F1 = 420;              // intake: wide mouth -> bore
+const G0 = SP.S-430, G1 = SP.S-330;    // outlet: bore -> wide mouth
+let MAX_STRETCH = 3.4;
+let BORE = 22;
+const M_START = F0-14;              // nose parked just outside the intake
+const C_START = M_START-CAT_L/2;
+let M_END = 0, C_END = 0;           // recomputed whenever the bore changes
+let W = new Float64Array(SP.S+1);      // half width of the channel
+let SQ = new Float64Array(SP.S+1);     // 0 = free, 1 = fully pinched
+let MM = new Float64Array(SP.S+1);     // material coordinate
+let M_TOT = 0;
+
+function buildProfile(bore){
+  BORE = bore;
+  /* a barely narrower tube should barely stretch the cat */
+  MAX_STRETCH = clamp(CAT_H/bore*0.8, 1.15, 3.6);
+  for(let s=0;s<=SP.S;s++){
+    let w;
+    if(s<=F0) w=CAT_H;
+    else if(s<F1) w=lerp(CAT_H,bore,smooth((s-F0)/(F1-F0)));
+    else if(s<=G0) w=bore;
+    else if(s<G1) w=lerp(bore,CAT_H,smooth((s-G0)/(G1-G0)));
+    else w=CAT_H;
+    W[s]=w;
+    SQ[s]=clamp((CAT_H-w)/(CAT_H-bore),0,1);
+  }
+  MM[0]=0;
+  for(let s=1;s<=SP.S;s++){
+    const st=1+(MAX_STRETCH-1)*SQ[s];
+    MM[s]=MM[s-1]+1/st;
+  }
+  M_TOT=MM[SP.S];
+  M_END = M_TOT-14;
+  C_END = M_END-CAT_L/2;
+  buildPipeGeometry();
+}
+function widthAt(s){
+  if(s<=0||s>=SP.S) return CAT_H;
+  const i=Math.floor(s); return lerp(W[i],W[i+1],s-i);
+}
+function squeezeAt(s){
+  if(s<=0||s>=SP.S) return 0;
+  const i=Math.floor(s); return lerp(SQ[i],SQ[i+1],s-i);
+}
+function matAt(s){
+  if(s<=0) return s;
+  if(s>=SP.S) return M_TOT+(s-SP.S);
+  const i=Math.floor(s); return lerp(MM[i],MM[i+1],s-i);
+}
+function invMat(m){
+  if(m<=0) return m;
+  if(m>=M_TOT) return SP.S+(m-M_TOT);
+  let lo=0, hi=SP.S;
+  while(hi-lo>1){ const mid=(lo+hi)>>1; if(MM[mid]<=m) lo=mid; else hi=mid; }
+  const d=MM[hi]-MM[lo];
+  return lo + (d>1e-9 ? (m-MM[lo])/d : 0);
+}
+function spineAt(s,out){
+  if(s<0){ out[0]=SP.X[0]+SP.TX[0]*s; out[1]=SP.Y[0]+SP.TY[0]*s; out[2]=SP.TX[0]; out[3]=SP.TY[0]; return; }
+  if(s>SP.S){ const d=s-SP.S; out[0]=SP.X[SP.S]+SP.TX[SP.S]*d; out[1]=SP.Y[SP.S]+SP.TY[SP.S]*d; out[2]=SP.TX[SP.S]; out[3]=SP.TY[SP.S]; return; }
+  const i=Math.min(SP.S-1,Math.floor(s)), u=s-i;
+  out[0]=lerp(SP.X[i],SP.X[i+1],u);
+  out[1]=lerp(SP.Y[i],SP.Y[i+1],u);
+  out[2]=lerp(SP.TX[i],SP.TX[i+1],u);
+  out[3]=lerp(SP.TY[i],SP.TY[i+1],u);
+}
+
+/* ---- static pipe outlines ---- */
+const WALL = 9;
+let PIPE = null;
+function buildPipeGeometry(){
+  const a=F0-8, b=G1+8, step=3;
+  const outL=[],outR=[],inL=[],inR=[],hiA=[],hiB=[];
+  const sp=[0,0,0,0];
+  for(let s=a;s<=b;s+=step){
+    spineAt(s,sp);
+    const w=widthAt(s), nx=-sp[3], ny=sp[2];
+    outL.push([sp[0]+nx*(w+WALL), sp[1]+ny*(w+WALL)]);
+    outR.push([sp[0]-nx*(w+WALL), sp[1]-ny*(w+WALL)]);
+    inL .push([sp[0]+nx*w, sp[1]+ny*w]);
+    inR .push([sp[0]-nx*w, sp[1]-ny*w]);
+    hiA .push([sp[0]-nx*w*0.70, sp[1]-ny*w*0.70]);
+    hiB .push([sp[0]-nx*w*0.44, sp[1]-ny*w*0.44]);
+  }
+  const outer = outL.concat(outR.slice().reverse());
+  const inner = inL.concat(inR.slice().reverse());
+  const high  = hiA.concat(hiB.slice().reverse());
+  const brackets=[];
+  for(const s of [470, 760, 1120, 1480, 1790]){
+    if(s<F1-10||s>G0+10) continue;
+    spineAt(s,sp);
+    brackets.push({x:sp[0],y:sp[1],a:Math.atan2(sp[3],sp[2]),w:widthAt(s)});
+  }
+  spineAt(a,sp);
+  const lipA={x:sp[0],y:sp[1],nx:-sp[3],ny:sp[2],w:widthAt(a)+WALL};
+  spineAt(b,sp);
+  const lipB={x:sp[0],y:sp[1],nx:-sp[3],ny:sp[2],w:widthAt(b)+WALL};
+  PIPE={outer,inner,high,outL,outR,inL,inR,brackets,lipA,lipB};
+}
+buildProfile(22);
+
+/* ============================================================
+   4. the warp: cat space -> world space
+   ============================================================ */
+let TIME = 0;
+const ripple = (m,t)=> t<0.02 ? 1 : 1 - 0.07*t + 0.07*t*Math.sin(m*0.075 - TIME*5.5);
+
+function makeWarp(st){
+  /* st: {mCenter, mu, stretch, fat} */
+  const sp=[0,0,0,0], env=[0,0,0];
+  return function(px,py,out){
+    const q = px;
+    envAt(q, env);
+    const m = st.mCenter + st.mu*(q-CAT_L/2)*st.stretch;
+    const s = invMat(m);
+    spineAt(s,sp);
+    const w = widthAt(s), t = squeezeAt(s);
+    const lim = Math.max(w*0.3, w-st.inset);   // leave room for the outline
+    const shaped = lerp(py*(w/CAT_H), ((py-env[0])/env[1])*w, t);
+    let off = shaped / st.stretch * ripple(m,t) * st.fat;
+    off = clamp(off, -lim, lim);
+    out[0] = sp[0] - sp[3]*off;
+    out[1] = sp[1] + sp[2]*off;
+    return out;
+  };
+}
+
+/* the continuous column of liquid that fills the bore: without it the
+   silhouette breaks into gaps wherever the cat happens to be thin
+   (between the legs, along the tail) */
+function streamPoly(st){
+  const half = Math.abs(st.mu)*st.stretch*CAT_L/2;
+  const m0 = st.mCenter-half, m1 = st.mCenter+half;
+  const N=190, A=[], B=[], sp=[0,0,0,0];
+  const sp0 = st.mu*st.stretch;
+  const span = Math.abs(sp0)<1e-5 ? 1e-5 : sp0;
+  let any=false;
+  for(let i=0;i<=N;i++){
+    const m = lerp(m0,m1,i/N);
+    const s = invMat(m);
+    spineAt(s,sp);
+    const t = squeezeAt(s);
+    const q = (m-st.mCenter)/span + CAT_L/2;
+    const edge = Math.min(smooth((m-m0)/14), smooth((m1-m)/14));
+    const bore = widthAt(s);
+    const w = Math.max(bore*0.3,bore-st.inset)*t*edge*envFill(q)*st.fat*ripple(m,t);
+    if(w>0.6) any=true;
+    A.push([sp[0]-sp[3]*w, sp[1]+sp[2]*w]);
+    B.push([sp[0]+sp[3]*w, sp[1]-sp[2]*w]);
+  }
+  return any ? A.concat(B.reverse()) : null;
+}
+function warpPoly(pts, warp){
+  const out=new Array(pts.length), t=[0,0];
+  for(let i=0;i<pts.length;i++){ warp(pts[i][0]+OX, pts[i][1]+OY, t); out[i]=[t[0],t[1]]; }
+  return out;
+}
+function polyPath(pts){
+  const p=new Path2D();
+  p.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++) p.lineTo(pts[i][0],pts[i][1]);
+  p.closePath();
+  return p;
+}
+
+/* ============================================================
+   5. timeline
+   ============================================================ */
+const PH = {idle:0.9, flow:4.0, settle:1.15, rest:0.7, flip:0.55};
+const HALF = PH.idle+PH.flow+PH.settle+PH.rest+PH.flip;
+const CYCLE = HALF*2;
+
+function flowEase(u){                 /* trapezoidal velocity: suck, glide, extrude */
+  const a=0.22,b=0.78;
+  const area = a/2 + (b-a) + (1-b)/2;
+  let v;
+  if(u<a) v = u*u/(2*a);
+  else if(u<b) v = a/2 + (u-a);
+  else { const k=(u-b)/(1-b); v = a/2 + (b-a) + (1-b)*(k - k*k/2); }
+  return v/area;
+}
+function elasticOut(u){ return Math.exp(-5.0*u)*Math.cos(u*TAU*1.55); }
+
+function timeline(tt){
+  let u = tt % CYCLE, dir = 1;
+  if(u>=HALF){ u-=HALF; dir=-1; }
+  const base = dir>0 ? C_START : C_END;
+  const goal = dir>0 ? C_END   : C_START;
+
+  let p=0, mu=dir, fat=1, stretch=1, wide=0, sway=1, flowing=0;
+  if(u<PH.idle){
+    p=0;
+  }else if(u<PH.idle+PH.flow){
+    const k=(u-PH.idle)/PH.flow;
+    p=flowEase(k); flowing=1;
+    wide=smooth(k/0.18)*(1-smooth((k-0.84)/0.16));
+    sway=0;
+  }else if(u<PH.idle+PH.flow+PH.settle){
+    const k=(u-PH.idle-PH.flow)/PH.settle;
+    p=1;
+    stretch = 1-0.20*elasticOut(k);
+    wide = (1-smooth(k/0.5))*0.6;
+    sway = smooth((k-0.4)/0.6);
+  }else if(u<PH.idle+PH.flow+PH.settle+PH.rest){
+    p=1;
+  }else{
+    p=1;
+    const k=smooth((u-PH.idle-PH.flow-PH.settle-PH.rest)/PH.flip);
+    mu = dir*Math.cos(Math.PI*k);
+    fat = 1+0.16*(1-Math.abs(Math.cos(Math.PI*k)));
+  }
+  const mCenter = lerp(base,goal,p);
+  /* gentle breathing while idle */
+  const idleAmt = 1-Math.min(1,flowing+Math.abs(1-stretch)*4);
+  stretch *= 1 - 0.012*Math.sin(TIME*2.1)*idleAmt;
+  return {mCenter, mu, stretch, fat, wide, sway, flowing, dir, p, u};
+}
+
+/* ============================================================
+   6. scene bounds + canvas plumbing
+   ============================================================ */
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let VIEW = {x0:0,y0:0,x1:1,y1:1};
+(function bounds(){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  const add=(x,y)=>{ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; };
+  for(const p of PIPE.outer) add(p[0],p[1]);
+  const sp=[0,0,0,0];
+  for(const s of [0,F0,G1,SP.S]){ spineAt(s,sp); add(sp[0],sp[1]-CAT_H*1.05); add(sp[0],sp[1]+CAT_H*1.25); }
+  VIEW={x0:x0-78, y0:y0-36, x1:x1+78, y1:y1+40};
+  const v=new URLSearchParams(location.search).get('view');
+  if(v){ const n=v.split(',').map(Number); VIEW={x0:n[0],y0:n[1],x1:n[2],y1:n[3]}; }
+})();
+let fit={s:1,dx:0,dy:0};
+function resize(){
+  const r=cv.getBoundingClientRect();
+  const dpr=Math.min(2.2, window.devicePixelRatio||1);
+  cv.width=Math.max(1,Math.round(r.width*dpr));
+  cv.height=Math.max(1,Math.round(r.height*dpr));
+  const sw=VIEW.x1-VIEW.x0, sh=VIEW.y1-VIEW.y0;
+  const s=Math.min(r.width/sw, r.height/sh);
+  fit={s:s*dpr, dx:((r.width-sw*s)/2 - VIEW.x0*s)*dpr, dy:((r.height-sh*s)/2 - VIEW.y0*s)*dpr};
+}
+window.addEventListener('resize',resize);
+
+/* ============================================================
+   7. atmosphere: dust + drips
+   ============================================================ */
+const dust=[];
+for(let i=0;i<58;i++) dust.push({
+  x:VIEW.x0+Math.random()*(VIEW.x1-VIEW.x0),
+  y:VIEW.y0+Math.random()*(VIEW.y1-VIEW.y0),
+  r:0.7+Math.random()*2.1, ph:Math.random()*TAU, sp:0.12+Math.random()*0.3
+});
+const drips=[];
+function spawnDrip(x,y,tx,ty){
+  drips.push({x,y, vx:tx*(40+Math.random()*90)+ (Math.random()-0.5)*30,
+              vy:ty*(40+Math.random()*90)+(Math.random()-0.5)*30,
+              r:1.6+Math.random()*3.4, life:0, max:0.9+Math.random()*0.7});
+}
+function stepDrips(dt){
+  for(let i=drips.length-1;i>=0;i--){
+    const d=drips[i];
+    d.life+=dt; d.vy+=520*dt; d.x+=d.vx*dt; d.y+=d.vy*dt;
+    if(d.life>d.max) drips.splice(i,1);
+  }
+}
+
+/* ============================================================
+   8. render
+   ============================================================ */
+function strokePoly(pts, col, lw, alpha=1){
+  ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=col; ctx.lineWidth=lw;
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.stroke(); ctx.restore();
+}
+
+function drawBackground(){
+  const g=ctx.createRadialGradient(
+    (VIEW.x0+VIEW.x1)/2, VIEW.y1-80, 40,
+    (VIEW.x0+VIEW.x1)/2, VIEW.y1-80, (VIEW.x1-VIEW.x0)*0.78);
+  g.addColorStop(0,'#1a2440'); g.addColorStop(0.55,'#0e1324'); g.addColorStop(1,'#06080f');
+  ctx.fillStyle=g;
+  ctx.fillRect(VIEW.x0,VIEW.y0,VIEW.x1-VIEW.x0,VIEW.y1-VIEW.y0);
+
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(const d of dust){
+    const y=d.y+Math.sin(TIME*d.sp+d.ph)*14;
+    const x=d.x+Math.cos(TIME*d.sp*0.7+d.ph)*10;
+    ctx.globalAlpha=0.08+0.07*(1+Math.sin(TIME*0.9+d.ph))/2;
+    ctx.fillStyle='#9fc4ff';
+    ctx.beginPath(); ctx.arc(x,y,d.r,0,TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawFloor(st, warp){
+  const sp=[0,0,0,0], pt=[0,0];
+  warp(CAT_L/2+OX*0, 0, pt);
+  const s = invMat(st.mCenter);
+  const fade = (1-squeezeAt(s))*Math.abs(st.mu);
+  if(fade<=0.02) return;
+  spineAt(clamp(s,0,SP.S),sp);
+  const y = sp[1]+CAT_H*1.12;
+  const g=ctx.createRadialGradient(pt[0],y,2,pt[0],y,CAT_H*1.7);
+  g.addColorStop(0,`rgba(255,150,70,${0.17*fade})`);
+  g.addColorStop(0.5,`rgba(255,120,60,${0.05*fade})`);
+  g.addColorStop(1,'rgba(255,120,60,0)');
+  ctx.save();
+  ctx.globalCompositeOperation='lighter'; ctx.fillStyle=g;
+  ctx.translate(pt[0],y); ctx.scale(1,0.2); ctx.translate(-pt[0],-y);
+  ctx.beginPath(); ctx.arc(pt[0],y,CAT_H*1.7,0,TAU); ctx.fill(); ctx.restore();
+}
+
+function drawPipeBack(){
+  const outer=polyPath(PIPE.outer), inner=polyPath(PIPE.inner);
+  ctx.save();
+  ctx.fillStyle=C.glass; ctx.fill(outer);
+  ctx.fillStyle=C.inner; ctx.fill(inner);
+  /* funnel flanges, seen edge on — they sit behind whatever is pouring through */
+  for(const L of [PIPE.lipA,PIPE.lipB]){
+    ctx.strokeStyle=C.metal; ctx.lineWidth=7; ctx.lineCap='round'; ctx.globalAlpha=0.7;
+    ctx.beginPath();
+    ctx.moveTo(L.x+L.nx*L.w, L.y+L.ny*L.w);
+    ctx.lineTo(L.x-L.nx*L.w, L.y-L.ny*L.w);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawPipeFront(){
+  ctx.save();
+  /* specular band */
+  const g=ctx.createLinearGradient(VIEW.x0,VIEW.y0,VIEW.x0,VIEW.y1);
+  g.addColorStop(0,'rgba(255,255,255,0.16)');
+  g.addColorStop(1,'rgba(255,255,255,0.07)');
+  ctx.fillStyle=g; ctx.fill(polyPath(PIPE.high));
+  /* glass tint + edges */
+  ctx.fillStyle='rgba(150,200,255,0.05)'; ctx.fill(polyPath(PIPE.outer));
+  strokePoly(PIPE.outL, C.glassEdge, 2.2);
+  strokePoly(PIPE.outR, C.glassEdge, 2.2);
+  strokePoly(PIPE.inL , 'rgba(160,200,255,0.22)', 1.4);
+  strokePoly(PIPE.inR , 'rgba(160,200,255,0.22)', 1.4);
+  /* clamps */
+  for(const b of PIPE.brackets){
+    ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(b.a);
+    const h=b.w+WALL+7;
+    ctx.fillStyle='rgba(126,145,178,0.85)';
+    ctx.beginPath(); ctx.roundRect(-7,-h,14,h*2,5); ctx.fill();
+    ctx.fillStyle='rgba(205,224,255,0.3)';
+    ctx.beginPath(); ctx.roundRect(-7,-h,5,h*2,4); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawCat(st){
+  const warp = makeWarp(st);
+  const cat = buildCat({tailSway: 0.22*Math.sin(TIME*1.35)*st.sway, blink: st.blink, wide: st.wide});
+
+  const union=new Path2D();
+  const massPaths=[];
+  const stream=streamPoly(st);
+  if(stream){
+    const path=polyPath(stream);
+    union.addPath(path);
+    massPaths.push({path, c:C.furMid});
+  }
+  for(const part of cat.mass){
+    const path=polyPath(warpPoly(part.p,warp));
+    union.addPath(path);
+    massPaths.push({path, c:part.c});
+  }
+
+  const t=st.tCenter, lw=st.inset;
+
+  /* glow */
+  ctx.save();
+  ctx.shadowColor='rgba(255,145,55,0.75)';
+  ctx.shadowBlur=lerp(16,42,t);
+  ctx.fillStyle=C.furMid; ctx.fill(union);
+  ctx.restore();
+
+  /* unified outline, then fills on top: no internal seams */
+  ctx.save();
+  ctx.strokeStyle=C.outline; ctx.lineWidth=lw*2; ctx.lineJoin='round';
+  ctx.stroke(union);
+  ctx.restore();
+  for(const m of massPaths){ ctx.fillStyle=m.c; ctx.fill(m.path); }
+
+  /* markings, clipped to the silhouette */
+  ctx.save(); ctx.clip(union);
+  for(const d of cat.detail){
+    ctx.globalAlpha=(d.a??1)*lerp(1,0.55,t);
+    ctx.fillStyle=d.c; ctx.fill(polyPath(warpPoly(d.p,warp)));
+  }
+  ctx.restore();
+
+  /* whiskers: they belong to the nose, so they fade as the nose gets pinched */
+  const tNose=squeezeAt(invMat(st.mCenter+st.mu*CAT_L/2*st.stretch));
+  const wAlpha=(1-Math.max(t,tNose))*0.9;
+  if(wAlpha>0.02){
+    const k=1-0.8*tNose;      /* whiskers sweep back as the muzzle is drawn in */
+    for(const w of [[[268,-2],[292,-13],[313,-18]],[[270,2],[296,2],[317,-1]],[[268,6],[292,14],[311,20]]]){
+      const pts=warpPoly(crOpen(w.map(p=>[268+(p[0]-268)*k, p[1]]),6),warp);
+      strokePoly(pts,'rgba(255,244,228,0.9)',2.6,wAlpha);
+    }
+  }
+  /* face */
+  for(const f of cat.face){
+    const a=(f.a??1)*(f.fade?1-0.8*t:1);
+    if(a<0.02) continue;
+    const pts=warpPoly(f.p,warp);
+    const path=polyPath(pts);
+    ctx.save(); ctx.globalAlpha=a;
+    if(f.ring){ ctx.strokeStyle=C.outline; ctx.lineWidth=lw*0.8; ctx.lineJoin='round'; ctx.stroke(path); }
+    ctx.fillStyle=f.c; ctx.fill(path); ctx.restore();
+  }
+}
+
+function drawDrips(){
+  ctx.save();
+  for(const d of drips){
+    const a=1-(d.life/d.max)**2;
+    ctx.globalAlpha=a*0.95;
+    ctx.fillStyle=C.furMid;
+    ctx.beginPath(); ctx.ellipse(d.x,d.y,d.r,d.r*(1+Math.min(0.9,Math.abs(d.vy)/650)),0,0,TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ============================================================
+   9. loop
+   ============================================================ */
+let playing=true, speed=1, clock=0, last=performance.now();
+let blinkT=2.0, blink=0;
+const scrub=document.getElementById('scrub');
+let scrubbing=false;
+
+function frame(now){
+  let dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(playing && !scrubbing) clock+=dt*speed;
+  TIME = clock;
+
+  /* blink bookkeeping */
+  blinkT-=dt*(playing?speed:0);
+  if(blinkT<0){ blinkT=2.4+Math.random()*3.4; }
+  blink = blinkT<0.16 ? Math.sin((1-blinkT/0.16)*Math.PI) : 0;
+
+  const st=timeline(clock);
+  st.blink=blink*(1-Math.min(1,st.wide*2));
+  st.tCenter=squeezeAt(invMat(st.mCenter));
+  st.inset=lerp(5.4,2.6,st.tCenter);   // outline half-width, kept inside the bore
+
+  stepDrips(dt);
+  /* drip when the stream is being extruded out of the far funnel */
+  const sLead = invMat(st.mCenter + st.mu*CAT_L/2*st.stretch);
+  const pouring = st.flowing && (st.dir>0 ? sLead>G1+6 : sLead<F0-6);
+  if(pouring && st.p<0.97 && Math.random()<dt*22){
+    const sp=[0,0,0,0];
+    const sOut = st.dir>0 ? G1+10 : F0-10;
+    spineAt(sOut,sp);
+    const w=widthAt(sOut)*0.5;
+    const k=(Math.random()*2-1);
+    spawnDrip(sp[0]-sp[3]*w*k, sp[1]+sp[2]*w*k, sp[2]*st.dir, sp[3]*st.dir);
+  }
+
+  if(!scrubbing) scrub.value = Math.round((clock%CYCLE)/CYCLE*1000);
+
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.setTransform(fit.s,0,0,fit.s,fit.dx,fit.dy);
+
+  drawBackground();
+  const warp=makeWarp(st);
+  drawFloor(st,warp);
+  drawPipeBack();
+  drawCat(st);
+  drawPipeFront();
+  drawDrips();
+
+  requestAnimationFrame(frame);
+}
+
+/* ---- controls ---- */
+const playBtn=document.getElementById('play');
+playBtn.addEventListener('click',()=>{ playing=!playing; playBtn.textContent=playing?'Pause':'Play'; });
+document.getElementById('speed').addEventListener('input',e=>{ speed=+e.target.value; });
+document.getElementById('bore').addEventListener('input',e=>{ buildProfile(+e.target.value); });
+scrub.addEventListener('pointerdown',()=>scrubbing=true);
+window.addEventListener('pointerup',()=>scrubbing=false);
+scrub.addEventListener('input',e=>{ clock=(+e.target.value)/1000*CYCLE; });
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){ e.preventDefault(); playing=!playing; playBtn.textContent=playing?'Pause':'Play'; }
+});
+
+/* ?t=<seconds> freezes one exact frame (used for headless stills) */
+const qp=new URLSearchParams(location.search);
+if(qp.has('bore')){ const b=document.getElementById('bore'); b.value=qp.get('bore'); buildProfile(+b.value); }
+if(qp.has('t')){ clock=parseFloat(qp.get('t'))||0; playing=false; playBtn.textContent='Play'; }
+
+resize();
+requestAnimationFrame(frame);
+
+/* exposed for headless checks */
+window.LIQCAT={SP,W,SQ,MM,timeline,makeWarp,buildCat,warpPoly,CAT_L,CAT_H,CYCLE,
+               M_START,M_END,M_TOT,VIEW,widthAt,squeezeAt,invMat,spineAt,
+               setTime:t=>{clock=t;TIME=t;}};
+})();
+</script>
+</body>
+</html>

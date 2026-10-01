@@ -4,13 +4,14 @@
 #
 #   ./native.sh codex  gpt-6-astra
 #   ./native.sh cursor claude-opus-5-thinking-high
+#   ./native.sh cursor grok-4.7-high -i   # interactive shell in the sandbox: drive the CLI yourself
 #
 # The CLI runs in a private mount namespace where projects, /tmp, transcripts, CLI chat
 # histories and credentials are hidden behind empty tmpfs mounts; the only workspace it
 # sees is /tmp/work (backed by native/<cli>/<model>/work). Logs land next to it.
 set -euo pipefail
 
-CLI=$1 MODEL=$2
+CLI=$1 MODEL=$2 INTERACTIVE=${3:-}
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=$HERE/native/$CLI/$MODEL
 STAGE=$HOME/.cat-native/$CLI-$MODEL          # outside every hidden path until masked
@@ -31,7 +32,7 @@ json.dump(d, open(f, 'w'))"
 HIDE_DIRS=(
   "$HOME/_PROJECTS" "$HOME/roman" "$HOME/cli-proxy" "$HOME/.claude"
   "$HOME/.ssh" "$HOME/.aws" "$HOME/.azure" "$HOME/.gnupg" "$HOME/.docker"
-  "$HOME/.vscode-server" "$HOME/.cursor-server"
+  "$HOME/.vscode-server" "$HOME/.cursor-server" /mnt/c/Users   # Program Files stays: agents use Windows Chrome
   "$HOME/.codex/sessions" "$HOME/.codex/memories" "$HOME/.codex/shell_snapshots" "$HOME/.codex/generated_images"
   "$HOME/.cursor/chats" "$HOME/.cursor/projects" "$HOME/.cursor/plans" "$HOME/.cursor/ai-tracking"
 )
@@ -48,6 +49,7 @@ case $CLI in
   probe)  RUN=(sh -c 'id -u; pwd; ls -A /tmp /tmp/work ~/_PROJECTS ~/.claude ~/.cursor/chats ~/.codex/sessions ~/.ssh ~/.cat-native; wc -c ~/.git-credentials ~/.claude.json ~/.codex/history.jsonl; ls ~/.codex/auth.json ~/.cursor/cli-config.json') ;;
   *) echo "unknown cli: $CLI" >&2; exit 2 ;;
 esac
+[ "$INTERACTIVE" = -i ] && RUN=(bash -i)
 
 # Outer namespace (uid 0) sets up the mounts; inner one drops back to the real uid.
 SETUP='
@@ -65,8 +67,13 @@ exec unshare -U --map-user='"$(id -u)"' --map-group='"$(id -g)"' "${RUN[@]}"
 export STAGE CURSOR_HOME
 start=$(date +%s.%N)
 set +e
-unshare -rm --propagation private bash -c "$(declare -p HIDE_DIRS HIDE_FILES RUN); $SETUP" \
-  >"$OUT/stdout.jsonl" 2>"$OUT/stderr.log"
+if [ "$INTERACTIVE" = -i ]; then
+  printf '\nSandbox: only /tmp/work (empty) and CLI logins are visible. Start the CLI, paste the\nprompt below, and `exit` when it is done; files left in /tmp/work become the result.\n\n%s\n\n' "$PROMPT"
+  unshare -rm --propagation private bash -c "$(declare -p HIDE_DIRS HIDE_FILES RUN); $SETUP"
+else
+  unshare -rm --propagation private bash -c "$(declare -p HIDE_DIRS HIDE_FILES RUN); $SETUP" \
+    >"$OUT/stdout.jsonl" 2>"$OUT/stderr.log"
+fi
 code=$?
 set -e
 secs=$(python3 -c "print(round($(date +%s.%N) - $start, 1))")

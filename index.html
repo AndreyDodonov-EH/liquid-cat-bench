@@ -261,17 +261,6 @@ const RESULTS = [
   "patch": null
  },
  {
-  "model": "grok-4.7",
-  "ok": false,
-  "effort": "high",
-  "seconds": 1249.8,
-  "finish": "stop",
-  "html_bytes": 0,
-  "error": "no HTML document found in the reply",
-  "route": "proxy",
-  "patch": null
- },
- {
   "model": "muse-spark-1.3-high",
   "ok": true,
   "effort": "high",
@@ -300,6 +289,15 @@ const RESULTS = [
   "html_bytes": 6311,
   "route": "cursor",
   "patch": null
+ },
+ {
+  "model": "grok-4.7 (cursor agent)",
+  "route": "cursor agent",
+  "ok": true,
+  "seconds": 3235,
+  "html_bytes": 28733,
+  "src": "native/cursor/grok-4.7-high/work/liquid-cat.html",
+  "raw": "native/cursor/grok-4.7-high/stdout.jsonl"
  }
 ];
 const PROMPT = 'Can you make me an animation of a cartoonish cat being "liquid"? I.e. going into a narrow tube like liquid and coming out …';

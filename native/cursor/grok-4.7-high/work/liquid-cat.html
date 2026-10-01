@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquid Cat</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 28px 16px 36px;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, #2a3344 0%, transparent 60%),
+      #161b24;
+    font-family: ui-rounded, "Segoe UI", system-ui, sans-serif;
+    color: #d9cfc4;
+  }
+  h1 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #b7aa9c;
+  }
+  .stage {
+    width: min(1100px, 100%);
+    background: #d5e4f2;
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.08) inset,
+      0 30px 70px rgba(0,0,0,0.45);
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    cursor: pointer;
+  }
+  p {
+    margin: 0;
+    max-width: 46ch;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.45;
+    color: #9a9086;
+  }
+  button.play {
+    appearance: none;
+    border: 0;
+    background: #ff9a3c;
+    color: #3a2012;
+    font: 700 15px/1 ui-rounded, "Segoe UI", system-ui, sans-serif;
+    padding: 12px 18px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  button.play[hidden] { display: none; }
+</style>
+</head>
+<body>
+  <h1>Liquid cat</h1>
+  <div class="stage">
+    <canvas id="c" width="1200" height="640" aria-label="A cartoon cat melts into liquid, pours through a narrow glass tube, and reforms on the other side. The animation loops. Click to pause."></canvas>
+  </div>
+  <p>It melts, slips through the tube, and puts itself back together. Click the scene to pause.</p>
+  <button class="play" id="play" hidden>Play animation</button>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const VW = 1200;
+  const VH = 640;
+
+  const CY = 358;
+  const LEFT = 178;
+  const RIGHT = 1022;
+  const MOUTH_L = 330;
+  const MOUTH_R = 870;
+  const TUBE_L = 490;
+  const TUBE_R = 710;
+  const MOUTH_H = 112;
+  const TUBE_H = 22;
+  const TABLE = 476;
+
+  const FUR_HI = [255, 196, 110];
+  const FUR = [255, 146, 48];
+  const FUR_LO = [214, 96, 28];
+  const OUTLINE = [158, 52, 18];
+  const STRIPE = [196, 72, 22];
+  const BELLY = [255, 243, 220];
+  const BELLY_LO = [255, 214, 176];
+
+  const MAX_DELAY = 0.16;
+
+  const blobs = [
+    { x: 92, y: -8, r: 8, delay: -0.045, part: 'drop' },
+    { x: 84, y: 12, r: 7, delay: -0.028, part: 'drop' },
+
+    { x: 64, y: -32, r: 40, delay: 0.0, part: 'head' },
+    { x: 88, y: -12, r: 20, delay: 0.0, part: 'head' },
+    { x: 46, y: -50, r: 18, delay: 0.008, part: 'head' },
+    { x: 100, y: -4, r: 14, delay: 0.0, part: 'muzzle' },
+
+    { x: 40, y: -72, r: 16, delay: 0.012, part: 'ear' },
+    { x: 68, y: -78, r: 15, delay: 0.01, part: 'ear' },
+
+    { x: 8, y: 8, r: 48, delay: 0.03, part: 'body' },
+    { x: 34, y: 4, r: 34, delay: 0.02, part: 'body' },
+    { x: -26, y: 10, r: 42, delay: 0.05, part: 'body' },
+    { x: 0, y: -14, r: 32, delay: 0.04, part: 'body' },
+    { x: 42, y: -6, r: 22, delay: 0.014, part: 'body' },
+    { x: 22, y: 30, r: 22, delay: 0.028, part: 'belly' },
+    { x: -2, y: 34, r: 20, delay: 0.046, part: 'belly' },
+    { x: 30, y: 58, r: 18, delay: 0.026, part: 'body' },
+    { x: -20, y: 56, r: 18, delay: 0.055, part: 'body' },
+
+    { x: -14, y: -2, r: 14, delay: 0.045, part: 'stripe' },
+    { x: 10, y: 14, r: 12, delay: 0.032, part: 'stripe' },
+    { x: -36, y: 6, r: 13, delay: 0.06, part: 'stripe' },
+    { x: 54, y: -52, r: 8, delay: 0.008, part: 'stripe' },
+    { x: 20, y: -8, r: 10, delay: 0.024, part: 'stripe' },
+    { x: -86, y: -20, r: 8, delay: 0.1, part: 'stripe' },
+
+    { x: 36, y: 96, r: 16, delay: 0.028, part: 'paw' },
+    { x: 12, y: 102, r: 15, delay: 0.038, part: 'paw' },
+    { x: -22, y: 100, r: 16, delay: 0.058, part: 'paw' },
+    { x: -46, y: 92, r: 15, delay: 0.07, part: 'paw' },
+
+    { x: -62, y: 6, r: 16, delay: 0.078, part: 'tail', amp: 3 },
+    { x: -84, y: -8, r: 13, delay: 0.09, part: 'tail', amp: 6 },
+    { x: -98, y: -28, r: 11, delay: 0.102, part: 'tail', amp: 9 },
+    { x: -88, y: -46, r: 10, delay: 0.112, part: 'tail', amp: 12 },
+  ];
+
+  const bodyC = document.createElement('canvas');
+  bodyC.width = VW;
+  bodyC.height = VH;
+  const bodyCtx = bodyC.getContext('2d', { willReadFrequently: true });
+
+  const outC = document.createElement('canvas');
+  outC.width = VW;
+  outC.height = VH;
+  const outCtx = outC.getContext('2d');
+
+  const params = new URLSearchParams(location.search);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches && !params.has('force');
+  let playOverride = params.has('force');
+  let paused = false;
+  let sim = params.has('t') ? Number(params.get('t')) : 0;
+  const frozen = params.has('freeze');
+  const CYCLE = 8.2;
+
+  const playBtn = document.getElementById('play');
+  if (reduce && !playOverride) playBtn.hidden = false;
+  playBtn.addEventListener('click', () => {
+    playOverride = true;
+    playBtn.hidden = true;
+    sim = 0;
+  });
+  canvas.addEventListener('click', () => {
+    if (reduce && !playOverride) return;
+    paused = !paused;
+  });
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function smooth(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+
+  function half(x) {
+    const lip = 36;
+    if (x <= MOUTH_L + lip) return MOUTH_H;
+    if (x < TUBE_L) return lerp(MOUTH_H, TUBE_H, smooth((x - (MOUTH_L + lip)) / (TUBE_L - MOUTH_L - lip)));
+    if (x <= TUBE_R) return TUBE_H;
+    if (x < MOUTH_R - lip) return lerp(TUBE_H, MOUTH_H, smooth((x - TUBE_R) / (MOUTH_R - lip - TUBE_R)));
+    return MOUTH_H;
+  }
+
+  function flowOf(t) {
+    const u = clamp((t - 0.1) / 0.78, 0, 1);
+    const span = 1 + MAX_DELAY;
+    if (u < 0.18) return smooth(u / 0.18) * 0.26;
+    if (u < 0.74) return 0.26 + ((u - 0.18) / 0.56) * 0.58;
+    return 0.84 + smooth((u - 0.74) / 0.26) * (span - 0.84);
+  }
+
+  function anticAmount(t, forward) {
+    const u = forward ? t : 1 - t;
+    if (u < 0.055 || u > 0.2) return 0;
+    if (u < 0.125) return (u - 0.055) / 0.07;
+    return 1 - (u - 0.125) / 0.075;
+  }
+
+  function bounceAmount(t, forward) {
+    let u;
+    if (forward) {
+      if (t < 0.84) return 0;
+      u = (t - 0.84) / 0.14;
+    } else {
+      if (t > 0.16) return 0;
+      u = (0.16 - t) / 0.14;
+    }
+    if (u <= 0 || u >= 1) return 0;
+    return Math.sin(u * Math.PI) * (1 - u);
+  }
+
+  function squeezeAt(x) {
+    if (x < MOUTH_L || x > MOUTH_R) return 1;
+    return clamp(half(x) / MOUTH_H, 0.2, 1);
+  }
+
+  function place(blob, flow, t, forward, time) {
+    const span = 1 + MAX_DELAY;
+    let s0;
+    if (flow <= 0.0001) s0 = 0;
+    else if (flow >= span - 0.0001) s0 = 1;
+    else s0 = clamp(flow - blob.delay, 0, 1);
+    const sq0 = squeezeAt(LEFT + s0 * (RIGHT - LEFT));
+    const delayScale = lerp(1, 0.62, smooth((1 - sq0) / 0.8));
+
+    let s;
+    if (flow <= 0.0001) s = 0;
+    else if (flow >= span - 0.0001) s = 1;
+    else s = clamp(flow - blob.delay * delayScale, 0, 1);
+
+    const x0 = LEFT + s * (RIGHT - LEFT);
+    let y0 = CY;
+    if (x0 > TUBE_L && x0 < TUBE_R) {
+      const edge = Math.min(1, (x0 - TUBE_L) / 46, (TUBE_R - x0) / 46);
+      y0 += Math.sin(time * 5.2 + x0 * 0.045) * 2.4 * edge;
+    }
+
+    let sq = 1;
+    if (x0 >= MOUTH_L && x0 <= MOUTH_R) sq = clamp(half(x0) / MOUTH_H, 0.2, 1);
+
+    const along = lerp(1, 0.45, smooth((1 - sq) / 0.8));
+    let ox = blob.x * along;
+    let oy = blob.y * sq;
+
+    const idle = sq > 0.92 && (s < 0.03 || s > 0.97) ? 1 : 0;
+    if (blob.part === 'tail') {
+      const amp = blob.amp || 0;
+      oy += Math.sin(time * 2.3 + blob.delay * 16) * amp * (idle ? 1 : 0.15);
+      ox += Math.cos(time * 1.7 + blob.delay * 12) * amp * 0.35 * idle;
+      if (sq < 0.55) oy += Math.sin(time * 8 - blob.delay * 28) * 4.5 * (1 - sq);
+    } else if (sq < 0.45 && blob.part !== 'drop') {
+      oy += Math.sin(time * 7 + blob.delay * 22 + blob.x) * 2.2 * (1 - sq);
+    }
+
+    const a = anticAmount(t, forward);
+    const dir = forward ? 1 : -1;
+    if (sq > 0.66) {
+      ox += dir * 24 * a;
+      oy *= 1 - 0.14 * a;
+    }
+
+    const bnc = bounceAmount(t, forward);
+    if (sq > 0.78 && bnc > 0) {
+      const squash = 1 - 0.16 * bnc;
+      const anchor = 62 * sq;
+      oy = anchor + (oy - anchor) * squash;
+    }
+
+    const rScale = lerp(0.55, 1, smooth(sq));
+    const r = Math.max(blob.part === 'drop' ? 6.5 : 5, blob.r * rScale);
+
+    return { x: x0 + ox, y: y0 + oy, r, s, sq, along, part: blob.part, delay: blob.delay };
+  }
+
+  function addVessel(c) {
+    const x0 = MOUTH_L;
+    const x1 = MOUTH_R;
+    c.moveTo(x0, CY - half(x0));
+    for (let x = x0; x <= x1; x += 5) c.lineTo(x, CY - half(x));
+    c.quadraticCurveTo(x1 + 26, CY - half(x1) * 0.55, x1 + 16, CY);
+    c.quadraticCurveTo(x1 + 26, CY + half(x1) * 0.55, x1, CY + half(x1));
+    for (let x = x1; x >= x0; x -= 5) c.lineTo(x, CY + half(x));
+    c.quadraticCurveTo(x0 - 26, CY + half(x0) * 0.55, x0 - 16, CY);
+    c.quadraticCurveTo(x0 - 26, CY - half(x0) * 0.55, x0, CY - half(x0));
+    c.closePath();
+  }
+
+  function traceVessel(c) {
+    c.beginPath();
+    addVessel(c);
+  }
+
+  function expression(head, t, forward) {
+    if (head.sq < 0.48) return 'liquid';
+    const a = anticAmount(t, forward);
+    if (a > 0.35 && head.sq > 0.72) return 'worry';
+    const b = bounceAmount(t, forward);
+    if (b > 0.2 && head.sq > 0.8) return 'relief';
+    return 'calm';
+  }
+
+  function blinkAmt(time, expr) {
+    if (expr === 'liquid' || expr === 'relief') return 0;
+    const p = time % 4.6;
+    if (p < 0.1) return Math.sin((p / 0.1) * Math.PI);
+    if (p > 2.6 && p < 2.68) return Math.sin(((p - 2.6) / 0.08) * Math.PI);
+    return 0;
+  }
+
+  function drawBackground() {
+    const g = ctx.createLinearGradient(0, 0, 0, VH);
+    g.addColorStop(0, '#c5dff3');
+    g.addColorStop(0.55, '#f4e7da');
+    g.addColorStop(1, '#e7d0bc');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VW, VH);
+
+    const sun = ctx.createRadialGradient(180, 70, 10, 220, 120, 280);
+    sun.addColorStop(0, 'rgba(255,244,214,0.95)');
+    sun.addColorStop(1, 'rgba(255,244,214,0)');
+    ctx.fillStyle = sun;
+    ctx.fillRect(0, 0, VW, VH);
+
+    ctx.fillStyle = '#f7d7b4';
+    ctx.beginPath();
+    ctx.ellipse(180, 86, 46, 46, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+  }
+
+  function drawTable() {
+    ctx.fillStyle = '#e4b88a';
+    ctx.fillRect(0, TABLE, VW, 56);
+    ctx.fillStyle = '#d7a06e';
+    ctx.fillRect(0, TABLE, VW, 8);
+    ctx.fillStyle = '#c4844e';
+    ctx.fillRect(0, TABLE + 56, VW, VH - TABLE - 56);
+
+    ctx.fillStyle = 'rgba(120, 70, 40, 0.08)';
+    for (let x = 40; x < VW; x += 86) {
+      ctx.fillRect(x, TABLE + 16, 2, 28);
+    }
+  }
+
+  function drawStands() {
+    for (const x of [520, 680]) {
+      const top = CY + TUBE_H + 4;
+      const grd = ctx.createLinearGradient(x - 16, 0, x + 16, 0);
+      grd.addColorStop(0, '#8ea3ae');
+      grd.addColorStop(0.5, '#d5e2e8');
+      grd.addColorStop(1, '#7f96a2');
+      ctx.fillStyle = grd;
+      ctx.fillRect(x - 5, top, 10, TABLE - top);
+      ctx.beginPath();
+      roundRect(ctx, x - 28, TABLE - 7, 56, 8, 3);
+      ctx.fill();
+    }
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  function drawGlassInterior() {
+    traceVessel(ctx);
+    const g = ctx.createLinearGradient(0, CY - MOUTH_H, 0, CY + MOUTH_H);
+    g.addColorStop(0, 'rgba(255,255,255,0.38)');
+    g.addColorStop(0.45, 'rgba(198, 224, 236, 0.14)');
+    g.addColorStop(1, 'rgba(150, 186, 204, 0.16)');
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
+
+  function massShadow(placed) {
+    let lx = 0, lw = 0, rx = 0, rw = 0;
+    for (const p of placed) {
+      if (p.part === 'drop' || p.part === 'stripe') continue;
+      if (p.s < 0.22) { lx += p.x * p.r; lw += p.r; }
+      if (p.s > 0.78) { rx += p.x * p.r; rw += p.r; }
+    }
+    ctx.fillStyle = 'rgba(92, 52, 28, 0.16)';
+    if (lw > 8) {
+      ctx.beginPath();
+      ctx.ellipse(lx / lw, TABLE - 2, 78, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (rw > 8) {
+      ctx.beginPath();
+      ctx.ellipse(rx / rw, TABLE - 2, 78, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function renderLiquid(placed, time) {
+    bodyCtx.setTransform(1, 0, 0, 1, 0, 0);
+    bodyCtx.clearRect(0, 0, VW, VH);
+    bodyCtx.fillStyle = '#fff';
+    bodyCtx.filter = 'blur(7px)';
+    for (const p of placed) {
+      if (p.part === 'stripe') continue;
+      bodyCtx.beginPath();
+      bodyCtx.arc(p.x, p.y, p.r + 1.2, 0, Math.PI * 2);
+      bodyCtx.fill();
+    }
+    const head = placed.find((p) => p.part === 'head' && p.r > 10);
+    if (head && head.sq > 0.45) drawEars(bodyCtx, head, '#fff', time, false);
+    bodyCtx.filter = 'none';
+
+    let minX = VW, minY = VH, maxX = 0, maxY = 0;
+    for (const p of placed) {
+      minX = Math.min(minX, p.x - p.r);
+      minY = Math.min(minY, p.y - p.r);
+      maxX = Math.max(maxX, p.x + p.r);
+      maxY = Math.max(maxY, p.y + p.r);
+    }
+    if (head && head.sq > 0.42) {
+      minY -= 56;
+      maxY += 10;
+      minX -= 20;
+      maxX += 20;
+    }
+    const pad = 28;
+    const bx = clamp(Math.floor(minX) - pad, 0, VW - 1);
+    const by = clamp(Math.floor(minY) - pad, 0, VH - 1);
+    const bw = clamp(Math.ceil(maxX) + pad, 1, VW) - bx;
+    const bh = clamp(Math.ceil(maxY) + pad, 1, VH) - by;
+    if (bw < 2 || bh < 2) return;
+
+    const img = bodyCtx.getImageData(bx, by, bw, bh);
+    const src = img.data;
+    const out = outCtx.createImageData(bw, bh);
+    const dst = out.data;
+
+    for (let y = 0; y < bh; y++) {
+      const py = by + y;
+      const shade = clamp((py - 300) / 200, 0, 1);
+      const fr = lerp(FUR_HI[0], FUR_LO[0], shade);
+      const fg = lerp(FUR_HI[1], FUR_LO[1], shade);
+      const fb = lerp(FUR_HI[2], FUR_LO[2], shade);
+      const mid = smooth(1 - Math.abs(shade - 0.42) * 1.4);
+      const cr = lerp(fr, FUR[0], 0.35 + mid * 0.25);
+      const cg = lerp(fg, FUR[1], 0.35 + mid * 0.25);
+      const cb = lerp(fb, FUR[2], 0.35 + mid * 0.25);
+      for (let x = 0; x < bw; x++) {
+        const i = (y * bw + x) * 4;
+        const a = src[i + 3];
+        if (a < 22) continue;
+        if (a < 78) {
+          const aa = (a - 22) / 56;
+          dst[i] = OUTLINE[0];
+          dst[i + 1] = OUTLINE[1];
+          dst[i + 2] = OUTLINE[2];
+          dst[i + 3] = (aa * 255) | 0;
+        } else if (a < 132) {
+          const u = (a - 78) / 54;
+          dst[i] = lerp(OUTLINE[0], cr, u) | 0;
+          dst[i + 1] = lerp(OUTLINE[1], cg, u) | 0;
+          dst[i + 2] = lerp(OUTLINE[2], cb, u) | 0;
+          dst[i + 3] = 255;
+        } else {
+          dst[i] = cr | 0;
+          dst[i + 1] = cg | 0;
+          dst[i + 2] = cb | 0;
+          dst[i + 3] = 255;
+        }
+      }
+    }
+
+    outCtx.setTransform(1, 0, 0, 1, 0, 0);
+    outCtx.clearRect(0, 0, VW, VH);
+    outCtx.putImageData(out, bx, by);
+
+    outCtx.save();
+    outCtx.globalCompositeOperation = 'source-atop';
+    for (const p of placed) {
+      if (p.part === 'stripe') {
+        outCtx.fillStyle = 'rgba(176, 62, 18, 0.9)';
+        outCtx.beginPath();
+        outCtx.ellipse(p.x, p.y, p.r * 1.05, p.r * 0.72, -0.5, 0, Math.PI * 2);
+        outCtx.fill();
+      } else if (p.part === 'belly' || p.part === 'muzzle') {
+        const grd = outCtx.createRadialGradient(p.x, p.y - p.r * 0.2, 1, p.x, p.y, p.r);
+        grd.addColorStop(0, 'rgba(255,248,236,0.95)');
+        grd.addColorStop(1, 'rgba(255,214,176,0.9)');
+        outCtx.fillStyle = grd;
+        outCtx.beginPath();
+        outCtx.arc(p.x, p.y, p.r * 0.92, 0, Math.PI * 2);
+        outCtx.fill();
+      }
+    }
+    for (const p of placed) {
+      if (p.part !== 'body' && p.part !== 'head') continue;
+      if (p.r < 12) continue;
+      outCtx.fillStyle = 'rgba(255,255,255,0.28)';
+      outCtx.beginPath();
+      outCtx.ellipse(p.x - p.r * 0.25, p.y - p.r * 0.38, p.r * 0.28, p.r * 0.16, -0.6, 0, Math.PI * 2);
+      outCtx.fill();
+    }
+    outCtx.restore();
+  }
+
+  function paintLiquid(insideGlass) {
+    if (insideGlass) {
+      ctx.save();
+      traceVessel(ctx);
+      ctx.clip();
+      ctx.drawImage(outC, 0, 0);
+      ctx.restore();
+      return;
+    }
+    for (const origin of [LEFT, RIGHT]) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(origin, CY + 10, 230, 168, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.beginPath();
+      ctx.rect(-40, -40, VW + 80, VH + 80);
+      addVessel(ctx);
+      ctx.clip('evenodd');
+      ctx.drawImage(outC, 0, 0);
+      ctx.restore();
+    }
+  }
+
+  function earPolys(head, time) {
+    const twitch = Math.sin(time * 2.6) * 1.6 * (head.sq > 0.85 ? 1 : 0);
+    const yScale = lerp(0.22, 1, smooth(head.sq));
+    const xScale = lerp(0.7, 1, head.sq);
+    const specs = [
+      { tip: [-16, -50], b1: [-32, -12], b2: [0, -14] },
+      { tip: [8, -56], b1: [-8, -14], b2: [24, -12] },
+    ];
+    return specs.map((e) => {
+      const map = (lx, ly) => ({
+        x: head.x + lx * xScale,
+        y: head.y + (ly + twitch) * yScale,
+      });
+      const tip = map(e.tip[0], e.tip[1]);
+      const b1 = map(e.b1[0], e.b1[1]);
+      const b2 = map(e.b2[0], e.b2[1]);
+      const itip = map(e.tip[0] * 0.72, e.tip[1] * 0.62);
+      const i1 = map(lerp(e.b1[0], e.tip[0], 0.38), lerp(e.b1[1], e.tip[1], 0.28));
+      const i2 = map(lerp(e.b2[0], e.tip[0], 0.38), lerp(e.b2[1], e.tip[1], 0.28));
+      return { tip, b1, b2, itip, i1, i2 };
+    });
+  }
+
+  function drawEars(c, head, color, time, stroke) {
+    const ears = earPolys(head, time);
+    c.fillStyle = color;
+    c.strokeStyle = '#9e3412';
+    c.lineWidth = 2.5;
+    c.lineJoin = 'round';
+    for (const e of ears) {
+      c.beginPath();
+      c.moveTo(e.b1.x, e.b1.y);
+      c.lineTo(e.tip.x, e.tip.y);
+      c.lineTo(e.b2.x, e.b2.y);
+      c.closePath();
+      c.fill();
+      if (stroke) c.stroke();
+    }
+  }
+
+  function drawFace(head, expr, time) {
+    const spread = lerp(1, 2.05, smooth(1 - head.sq));
+    const yScale = lerp(0.22, 1, smooth(head.sq));
+    const blink = blinkAmt(time, expr);
+    const anchorY = lerp(head.y, CY, smooth(1 - head.sq) * 0.92);
+    const pt = (lx, ly) => ({ x: head.x + lx * spread, y: anchorY + ly * yScale });
+
+    if (head.sq > 0.5) {
+      ctx.save();
+      ctx.globalAlpha = smooth((head.sq - 0.5) / 0.35);
+      const ears = earPolys(head, time);
+      ctx.fillStyle = '#ff7d98';
+      for (const e of ears) {
+        ctx.beginPath();
+        ctx.moveTo(e.i1.x, e.i1.y);
+        ctx.lineTo(e.itip.x, e.itip.y);
+        ctx.lineTo(e.i2.x, e.i2.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = smooth((head.sq - 0.55) / 0.3);
+      ctx.strokeStyle = STRIPE[0] ? '#c2410c' : '#c2410c';
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = 'round';
+      const marks = [[-2, -20, -8, -8], [6, -22, 2, -8], [14, -18, 12, -6]];
+      for (const m of marks) {
+        const a = pt(m[0], m[1]);
+        const b = pt(m[2], m[3]);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    const eyes = [
+      { lx: -10, ly: -4, rx: 12, ry: 14 },
+      { lx: 16, ly: 1, rx: 14, ry: 15.5 },
+    ];
+    if (expr === 'liquid') {
+      eyes[0].rx = 13; eyes[0].ry = 7.2; eyes[0].lx = -18; eyes[0].ly = 0;
+      eyes[1].rx = 14; eyes[1].ry = 7.6; eyes[1].lx = 14; eyes[1].ly = 0;
+    } else if (expr === 'worry') {
+      eyes[0].rx = 13; eyes[0].ry = 16;
+      eyes[1].rx = 15; eyes[1].ry = 17.2;
+    }
+
+    eyes.forEach((e, idx) => {
+      const p = pt(e.lx, e.ly);
+      drawEye(p.x, p.y, e.rx, e.ry, expr, blink, time, idx);
+    });
+
+    const nose = pt(30, 11);
+    const nScale = lerp(0.45, 1, smooth(head.sq));
+    ctx.save();
+    ctx.translate(nose.x, nose.y);
+    ctx.scale(nScale, lerp(0.55, 1, head.sq));
+    ctx.fillStyle = '#ff5d7e';
+    ctx.beginPath();
+    ctx.moveTo(0, -5);
+    ctx.lineTo(5.2, 2);
+    ctx.quadraticCurveTo(0, 6, -5.2, 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(-1.4, -1.2, 1.5, 1.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    const whiskerAlpha = smooth((head.sq - 0.48) / 0.35);
+    if (whiskerAlpha > 0.02) {
+      ctx.save();
+      ctx.globalAlpha = whiskerAlpha;
+      ctx.strokeStyle = '#6b4632';
+      ctx.lineWidth = 1.35;
+      ctx.lineCap = 'round';
+      const origin = pt(22, 13);
+      const len = 36;
+      for (const side of [-1, 1]) {
+        for (const ang of [-0.45, -0.05, 0.38]) {
+          ctx.beginPath();
+          ctx.moveTo(origin.x, origin.y);
+          ctx.lineTo(origin.x + Math.cos(ang) * len * side, origin.y + Math.sin(ang) * len * 0.55);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    if (expr !== 'liquid') {
+      const m = pt(20, 24);
+      ctx.strokeStyle = '#6a341f';
+      ctx.lineWidth = 1.8;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      if (expr === 'worry') {
+        ctx.ellipse(m.x, m.y, 4.2, 5.2, 0, 0, Math.PI * 2);
+      } else if (expr === 'relief') {
+        ctx.moveTo(m.x - 9, m.y - 1);
+        ctx.quadraticCurveTo(m.x, m.y + 8, m.x + 10, m.y - 1);
+      } else {
+        ctx.moveTo(m.x - 7, m.y);
+        ctx.quadraticCurveTo(m.x, m.y + 6, m.x + 8, m.y + 1);
+      }
+      ctx.stroke();
+    }
+
+    if (head.sq > 0.7 && expr !== 'liquid') {
+      ctx.fillStyle = 'rgba(255, 120, 140, 0.28)';
+      for (const lx of [-2, 20]) {
+        const p = pt(lx, 12);
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, 7, 4.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawEye(x, y, rx, ry, expr, blink, time, idx) {
+    ctx.save();
+    ctx.translate(x, y);
+    if (expr === 'relief') {
+      ctx.strokeStyle = '#2a2340';
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-rx, 0);
+      ctx.quadraticCurveTo(0, -ry * 0.85, rx, 0);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    const sy = Math.max(0.08, 1 - blink * 0.92);
+    ctx.scale(1, sy);
+    ctx.fillStyle = '#fffdf8';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#2c2440';
+    ctx.lineWidth = 1.7;
+    ctx.stroke();
+
+    if (blink < 0.75) {
+      let px = 0;
+      let py = ry * 0.12;
+      let pr = rx * 0.46;
+      if (expr === 'liquid') {
+        const ang = time * 7 + idx;
+        px = Math.cos(ang) * rx * 0.28;
+        py = Math.sin(ang) * ry * 0.22;
+        pr = rx * 0.3;
+      } else if (expr === 'worry') {
+        px = rx * 0.18;
+        py = 0;
+        pr = rx * 0.34;
+      }
+      ctx.fillStyle = '#241c36';
+      ctx.beginPath();
+      ctx.ellipse(px, py, pr, pr * 1.08, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(px - pr * 0.35, py - pr * 0.45, Math.max(1.4, pr * 0.38), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(px + pr * 0.4, py + pr * 0.35, Math.max(0.8, pr * 0.16), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawBubbles(placed, time, forward) {
+    ctx.save();
+    traceVessel(ctx);
+    ctx.clip();
+    for (let i = 0; i < 9; i++) {
+      const speed = 0.07 + (i % 3) * 0.025;
+      const dir = forward ? 1 : -1;
+      let u = (time * speed * dir + i * 0.137) % 1;
+      if (u < 0) u += 1;
+      const x = TUBE_L - 20 + u * (TUBE_R - TUBE_L + 40);
+      const y = CY + Math.sin(time * 3 + i * 1.7) * (TUBE_H * 0.45);
+      let inside = false;
+      for (const p of placed) {
+        const dx = x - p.x;
+        const dy = y - p.y;
+        if (dx * dx + dy * dy < (p.r + 2) * (p.r + 2)) { inside = true; break; }
+      }
+      if (!inside) continue;
+      const rad = 1.6 + (i % 4);
+      ctx.beginPath();
+      ctx.arc(x, y, rad, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawGlassFront() {
+    traceVessel(ctx);
+    ctx.save();
+    ctx.clip();
+    ctx.beginPath();
+    for (let x = MOUTH_L + 10; x <= MOUTH_R - 10; x += 6) {
+      if (x === MOUTH_L + 10) ctx.moveTo(x, CY - half(x) + 7);
+      else ctx.lineTo(x, CY - half(x) + 7);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+
+    traceVessel(ctx);
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+    ctx.lineWidth = 7;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(70, 110, 130, 0.28)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    for (const x of [MOUTH_L, MOUTH_R]) {
+      ctx.beginPath();
+      ctx.ellipse(x, CY, 15, half(x), 0, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(80, 120, 140, 0.35)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+
+    for (const x of [TUBE_L, TUBE_R]) {
+      const g = ctx.createLinearGradient(x - 10, 0, x + 10, 0);
+      g.addColorStop(0, '#7f97a3');
+      g.addColorStop(0.45, '#f2f7f8');
+      g.addColorStop(1, '#6d8794');
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.ellipse(x, CY, 8, TUBE_H + 5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.save();
+    ctx.translate(600, CY - TUBE_H - 16);
+    ctx.rotate(-0.04);
+    roundRect(ctx, -26, -11, 52, 18, 3);
+    ctx.fillStyle = '#f3e7b8';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120,90,40,0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#7a5a32';
+    ctx.font = '700 11px ui-rounded, Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('CAT', 0, 1);
+    ctx.restore();
+  }
+
+  function drawPaws(placed) {
+    for (const p of placed) {
+      if (p.part !== 'paw' || p.sq < 0.8) continue;
+      ctx.globalAlpha = smooth((p.sq - 0.8) / 0.15);
+      ctx.fillStyle = '#f6b898';
+      for (const dx of [-4, 0, 4]) {
+        ctx.beginPath();
+        ctx.arc(p.x + dx, p.y + p.r * 0.35, 2.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function render(time) {
+    let t;
+    let forward = true;
+    if (reduce && !playOverride) {
+      t = 0.02;
+    } else if (frozen) {
+      t = clamp(sim, 0, 1);
+    } else {
+      const period = CYCLE * 2;
+      let p = (sim % period) / CYCLE;
+      forward = p <= 1;
+      t = forward ? p : 2 - p;
+    }
+
+    const flow = flowOf(t);
+    const placed = blobs.map((b) => place(b, flow, t, forward, time));
+    const head = placed.find((p) => p.part === 'head' && p.delay === 0 && p.r > 12);
+    const expr = expression(head, t, forward);
+
+    ctx.setTransform(canvas.width / VW, 0, 0, canvas.height / VH, 0, 0);
+    ctx.clearRect(0, 0, VW, VH);
+    drawBackground();
+    drawTable();
+    drawStands();
+    massShadow(placed);
+    drawGlassInterior();
+    renderLiquid(placed, time);
+    paintLiquid(true);
+    drawBubbles(placed, time, forward);
+    if (head.sq <= 0.62) drawFace(head, expr, time);
+    drawGlassFront();
+    paintLiquid(false);
+    if (head.sq > 0.62) drawFace(head, expr, time);
+    drawPaws(placed);
+
+    if (paused) {
+      ctx.fillStyle = 'rgba(40, 28, 22, 0.55)';
+      roundRect(ctx, VW / 2 - 54, 28, 108, 32, 16);
+      ctx.fill();
+      ctx.fillStyle = '#fff8ee';
+      ctx.font = '600 14px ui-rounded, Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('paused', VW / 2, 44);
+    }
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (!paused && !frozen && !(reduce && !playOverride)) sim += dt;
+    const time = now / 1000;
+    render(time);
+    requestAnimationFrame(loop);
+  }
+
+  function fit() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = canvas.clientWidth || 1100;
+    const h = w * (VH / VW);
+    canvas.style.height = h + 'px';
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+  }
+  fit();
+  addEventListener('resize', fit);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

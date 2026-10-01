@@ -34,7 +34,7 @@ MODELS = [
     "gpt-6.1-sol", "gpt-6-sol", "gpt-6-astra", "gpt-6-luna",
     "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5",
     "gemini-3.8-flash-high",
-    "grok-4.7", "muse-spark-1.3-high", "kimi-k3-high", "glm-5.2-high",
+    "muse-spark-1.3-high", "kimi-k3-high", "glm-5.2-high",
 ]
 # Read as a stream: xAI's chat proxy held a non-streaming request open 44 min without a byte.
 STREAM_MODELS = {"grok-4.7"}
@@ -165,7 +165,7 @@ def api_cost(model, stats, prices):
 
 
 # native.sh lanes: CLI model id -> bench id it is compared with.
-NATIVE_IDS = {"claude-opus-5-thinking-high": "claude-opus-5"}
+NATIVE_IDS = {"claude-opus-5-thinking-high": "claude-opus-5", "grok-4.7-high": "grok-4.7"}
 
 
 def insert_native(data):

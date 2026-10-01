@@ -34,10 +34,12 @@ MODELS = [
     "gpt-6.1-sol", "gpt-6-sol", "gpt-6-astra", "gpt-6-luna",
     "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5",
     "gemini-3.8-flash-high",
-    "grok-4.7-high", "muse-spark-1.3-high", "kimi-k3-high", "glm-5.2-high",
+    "grok-4.7", "muse-spark-1.3-high", "kimi-k3-high", "glm-5.2-high",
 ]
+# Read as a stream: xAI's chat proxy held a non-streaming request open 44 min without a byte.
+STREAM_MODELS = {"grok-4.7"}
 # Not served by cli-proxy; run through Cursor's `agent` CLI under the same id.
-CURSOR_MODELS = {"grok-4.7-high", "muse-spark-1.3-high", "kimi-k3-high", "glm-5.2-high"}
+CURSOR_MODELS = {"muse-spark-1.3-high", "kimi-k3-high", "glm-5.2-high"}
 
 # Hand fixes applied to pages/<model>.html after extraction (raw/ stays untouched).
 # Re-running a model overwrites its page, so re-apply or drop the entry.
@@ -70,13 +72,36 @@ def call_proxy(model, key):
                "messages": [{"role": "user", "content": PROMPT}]}
     if model.startswith("claude-"):
         payload["max_tokens"] = MAX_TOKENS.get(model, CLAUDE_MAX_TOKENS)
+    if model in STREAM_MODELS:
+        payload.update(stream=True, stream_options={"include_usage": True})
     req = urllib.request.Request(PROXY, json.dumps(payload).encode(),
                                  {"Authorization": f"Bearer {key}",
                                   "Content-Type": "application/json"})
+    if model in STREAM_MODELS:
+        return stream_proxy(req)
     with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
         resp = json.load(r)
     choice, usage = resp["choices"][0], resp.get("usage", {})
     return choice["message"].get("content") or "", choice.get("finish_reason"), {
+        "prompt_tokens": usage.get("prompt_tokens"),
+        "out_tokens": usage.get("completion_tokens"),
+        "total_tokens": usage.get("total_tokens"),
+        "reasoning_tokens": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")}
+
+
+def stream_proxy(req):
+    """Same as the plain call, but read as SSE and accumulate the reply."""
+    text, finish, usage = [], None, {}
+    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
+        for line in r:
+            if not line.startswith(b"data:") or line.strip() == b"data: [DONE]":
+                continue
+            d = json.loads(line[5:])
+            usage = d.get("usage") or usage
+            for ch in d.get("choices", []):
+                text.append(ch.get("delta", {}).get("content") or "")
+                finish = ch.get("finish_reason") or finish
+    return "".join(text), finish, {
         "prompt_tokens": usage.get("prompt_tokens"),
         "out_tokens": usage.get("completion_tokens"),
         "total_tokens": usage.get("total_tokens"),

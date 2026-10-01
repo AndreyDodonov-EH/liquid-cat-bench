@@ -1,0 +1,1 @@
+I'll build a self-contained HTML animation: a cartoon cat melts into goo, squeezes through a narrow glass tube, and pops back together on the other side.

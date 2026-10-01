@@ -33,9 +33,12 @@ MODELS = [
     "claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-5", "claude-opus-4-8",
     "gpt-6.1-sol", "gpt-6-sol", "gpt-6-astra", "gpt-6-luna",
     "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5",
-    "gemini-3.8-flash-high",
+    "gemini-3.8-flash-high", "gemini-3.1-pro-high",
     "muse-spark-1.3-high", "kimi-k3-high", "glm-5.2-high",
 ]
+# Bench id -> proxy model id. The proxy only lists gemini-3.1-pro-low, but passes
+# reasoning_effort through (high thinks ~3.5x longer than low), so it runs at high.
+UPSTREAM = {"gemini-3.1-pro-high": "gemini-3.1-pro-low"}
 # Read as a stream: xAI's chat proxy held a non-streaming request open 44 min without a byte.
 STREAM_MODELS = {"grok-4.7"}
 # Not served by cli-proxy; run through Cursor's `agent` CLI under the same id.
@@ -68,7 +71,7 @@ def extract_html(text):
 
 def call_proxy(model, key):
     """-> (reply text, finish reason, usage) via cli-proxy."""
-    payload = {"model": model, "reasoning_effort": REASONING_EFFORT,
+    payload = {"model": UPSTREAM.get(model, model), "reasoning_effort": REASONING_EFFORT,
                "messages": [{"role": "user", "content": PROMPT}]}
     if model.startswith("claude-"):
         payload["max_tokens"] = MAX_TOKENS.get(model, CLAUDE_MAX_TOKENS)

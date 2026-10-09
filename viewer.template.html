@@ -110,6 +110,7 @@ function statsHtml(r) {
   if (r.cost != null) parts.push(`${usd(r.cost)} at $${r.price.in}/$${r.price.out} per M` +
     (r.route === 'cursor' ? ' (output only)' : ''));
   if (r.route === 'cursor') parts.push('via Cursor');
+  if (r.route === 'claude cli') parts.push('via Claude Code CLI');
   if (r.html_bytes) parts.push(`${(r.html_bytes / 1024).toFixed(1)} KB html`);
   if (r.patch) parts.push(`<b>${r.patch}</b>`);
   if (r.finish && r.finish !== 'stop' && r.finish !== 'end_turn') parts.push(`finish: ${r.finish}`);

@@ -29,7 +29,7 @@ PUBLISH_USAGE = False
 USAGE_KEYS = {"prompt_tokens", "out_tokens", "total_tokens", "reasoning_tokens", "cost", "price"}
 
 MODELS = [
-    "claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5",
+    "claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5", "claude-haiku-5-5",
     "claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-5", "claude-opus-4-8",
     "gpt-6.1-sol", "gpt-6-sol", "gpt-6-astra", "gpt-6-luna",
     "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5",
@@ -43,6 +43,9 @@ UPSTREAM = {"gemini-3.1-pro-high": "gemini-3.1-pro-low"}
 STREAM_MODELS = {"grok-4.7"}
 # Not served by cli-proxy; run through Cursor's `agent` CLI under the same id.
 CURSOR_MODELS = {"muse-spark-1.3-high", "kimi-k3-high", "glm-5.2-high"}
+# Not in cli-proxy's model catalog; run through Claude Code's own CLI, tools off.
+CLAUDE_CLI_MODELS = {"claude-haiku-5-5"}
+CLAUDE_CLI_SYSTEM = "You are Claude Code, Anthropic's official CLI for Claude."
 
 # Hand fixes applied to pages/<model>.html after extraction (raw/ stays untouched).
 # Re-running a model overwrites its page, so re-apply or drop the entry.
@@ -130,10 +133,39 @@ def call_cursor(model):
         "out_tokens": usage.get("outputTokens")}
 
 
+def call_claude_cli(model):
+    """-> (reply text, finish reason, usage) via `claude -p`.
+
+    No tools, no user/project settings, memory, hooks, skills or MCP, from an empty
+    scratch dir. The system prompt is cut to Claude Code's identity line: under the
+    full agent prompt a tool-less Haiku writes fake tool calls instead of the page.
+    """
+    with tempfile.TemporaryDirectory(prefix="cat-claude-") as cwd:
+        out = subprocess.run(["claude", "-p", PROMPT, "--model", model, "--effort", REASONING_EFFORT,
+                              "--system-prompt", CLAUDE_CLI_SYSTEM,
+                              "--tools", "", "--setting-sources", "", "--strict-mcp-config",
+                              "--disable-slash-commands", "--no-session-persistence",
+                              "--output-format", "json"],
+                             cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT_S,
+                             stdin=subprocess.DEVNULL)
+    try:
+        resp = json.loads(out.stdout)
+    except ValueError:
+        raise RuntimeError((out.stdout + out.stderr)[:2000])
+    if resp.get("is_error"):
+        raise RuntimeError(out.stdout[:2000])
+    usage = resp.get("usage", {})
+    return resp.get("result") or "", resp.get("stop_reason") or resp.get("subtype"), {
+        "prompt_tokens": usage.get("input_tokens"),
+        "out_tokens": usage.get("output_tokens")}
+
+
 def run(model, key):
     t0 = time.time()
     try:
-        text, finish, usage = call_cursor(model) if model in CURSOR_MODELS else call_proxy(model, key)
+        call = (call_cursor if model in CURSOR_MODELS else
+                call_claude_cli if model in CLAUDE_CLI_MODELS else None)
+        text, finish, usage = call(model) if call else call_proxy(model, key)
     except Exception as e:  # keep going; the viewer shows the failure
         err = e.read().decode(errors="replace")[:2000] if hasattr(e, "read") else str(e)
         print(f"{model}: FAILED {err[:200]}", flush=True)
@@ -196,7 +228,8 @@ def build_viewer():
     prices = json.loads(prices_path.read_text()) if prices_path.exists() else {}
     tpl = (HERE / "viewer.template.html").read_text()
     order = [m for m in MODELS if m in results] + sorted(set(results) - set(MODELS))
-    data = [{"model": m, **results[m], "route": "cursor" if m in CURSOR_MODELS else "proxy",
+    data = [{"model": m, **results[m], "route": "cursor" if m in CURSOR_MODELS else
+             "claude cli" if m in CLAUDE_CLI_MODELS else "proxy",
              "cost": api_cost(m, results[m], prices), "price": prices.get(m),
              "patch": PATCHES.get(m)} for m in order]
     data = insert_native(data)

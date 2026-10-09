@@ -1,0 +1,239 @@
+Save this as `cat-liquid.html` and open it in a browser. It's a single self-contained file (SVG + vanilla JS, no dependencies).
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Liquid Cat</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #1b2238; font-family: system-ui, sans-serif;
+  }
+  svg {
+    width: min(96vw, 1000px); height: auto; border-radius: 18px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  }
+  button {
+    margin-top: 18px; padding: 9px 22px; border: 0; border-radius: 10px;
+    background: #ffb35c; color: #2a1606; font: 700 15px system-ui, sans-serif; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+</style>
+</head>
+<body>
+
+<svg viewBox="0 0 1000 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bfe3ff"/>
+      <stop offset="1" stop-color="#f4fbff"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffcb8e"/>
+      <stop offset="1" stop-color="#ef8536"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#bfe9ff" stop-opacity=".5"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1000" height="420" fill="url(#sky)"/>
+  <rect y="340" width="1000" height="80" fill="#e2cfae"/>
+  <line x1="0" y1="340" x2="1000" y2="340" stroke="#bfa27c" stroke-width="2"/>
+
+  <g id="scene">
+    <rect x="400" y="272" width="160" height="20" fill="url(#glass)"/>
+
+    <path id="tailO" fill="none" stroke="#6b3a16" stroke-width="15" stroke-linecap="round"/>
+    <path id="tail"  fill="none" stroke="#ef8536" stroke-width="9"  stroke-linecap="round"/>
+    <path id="ears"  fill="#ffb36b" stroke="#6b3a16" stroke-width="3" stroke-linejoin="round"/>
+    <path id="body"  fill="url(#fur)" stroke="#6b3a16" stroke-width="3" stroke-linejoin="round"/>
+    <path id="stripes" fill="none" stroke="#b35c1e" stroke-width="5" stroke-linecap="round"/>
+    <path id="shine"   fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity=".55"/>
+    <path id="nose" fill="#ff7f9e" stroke="#6b3a16" stroke-width="1.5" stroke-linejoin="round"/>
+    <path id="whiskers" fill="none" stroke="#6b3a16" stroke-width="1.6" stroke-linecap="round"/>
+    <ellipse id="eye" fill="#1d1020" rx="6" ry="8"/>
+    <circle id="glint" r="2.4" fill="#fff"/>
+
+    <!-- pipe (drawn last so it sits in front of the liquid) -->
+    <rect x="388" y="260" width="184" height="12" rx="4" fill="#7b889f" stroke="#3b4358" stroke-width="2"/>
+    <rect x="388" y="292" width="184" height="12" rx="4" fill="#7b889f" stroke="#3b4358" stroke-width="2"/>
+    <rect x="380" y="250" width="16" height="64" rx="5" fill="#5d6980" stroke="#3b4358" stroke-width="2"/>
+    <rect x="564" y="250" width="16" height="64" rx="5" fill="#5d6980" stroke="#3b4358" stroke-width="2"/>
+  </g>
+</svg>
+<button id="replay">Replay</button>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = {
+  scene: $('scene'), tailO: $('tailO'), tail: $('tail'), ears: $('ears'), body: $('body'),
+  stripes: $('stripes'), shine: $('shine'), nose: $('nose'), whiskers: $('whiskers'),
+  eye: $('eye'), glint: $('glint')
+};
+
+// ---------- stage geometry ----------
+const B  = 340;             // ground line
+const TY = 282;             // centre line of the pipe
+const TR = 10;              // pipe inner radius (liquid is 20 thick inside the pipe)
+const T1 = 400, T2 = 560;   // pipe entrance / exit
+const RAMP = 50;            // funnel length on each side of the pipe
+const X0 = 350, X1 = 925;   // head position at start / end of the pour
+const CYCLE = 10.4;         // seconds per loop
+
+// ---------- cat model: side-view loaf, sliced along x ----------
+// Slice 0 = head (right), slice N-1 = tail (left).
+// Every slice carries a fixed "mass" AR[i] = width * thickness.
+// The layout keeps mass constant: thin slices (in the pipe) get long,
+// fat slices get short. That's what makes it read as liquid.
+const LC = 270, N = 110, DX = LC / N;
+const ell = (x, cx, rx, ry) => { const u = (x - cx) / rx; return u*u < 1 ? ry*Math.sqrt(1 - u*u) : 0; };
+const H = x => Math.max(ell(x, 115, 115, 70), ell(x, 205, 65, 72));   // body + head
+const XL = new Float64Array(N), H0 = new Float64Array(N), AR = new Float64Array(N);
+for (let i = 0; i < N; i++) {
+  XL[i] = LC - (i + 0.5) * DX;
+  H0[i] = Math.max(1.5, H(XL[i]));
+  AR[i] = DX * H0[i];
+}
+
+// ---------- helpers ----------
+const clamp01 = x => Math.min(1, Math.max(0, x));
+const smooth  = x => { x = clamp01(x); return x * x * (3 - 2 * x); };
+const easeIO  = x => { x = clamp01(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3) / 2; };
+const lerp    = (a, b, t) => a + (b - a) * t;
+const clampI  = i => Math.max(0, Math.min(N - 1, i));
+// 0 outside the pipe, 1 inside, smooth funnel on each side
+const windowW = x => smooth((x - (T1 - RAMP)) / RAMP) * (1 - smooth((x - T2) / RAMP));
+
+// ---------- per-frame layout (head -> tail, mass conserving) ----------
+const Rr = new Float64Array(N), Lf = new Float64Array(N), Wd = new Float64Array(N);
+const hh = new Float64Array(N), cc = new Float64Array(N), ww = new Float64Array(N);
+const hF = new Float64Array(N);
+let SC = 1;
+
+function layout(t, M, Xf) {
+  const sMelt   = 1 - 0.12 * M;                     // liquid slumps a little
+  const breathe = (1 - M) * 0.012 * Math.sin(t * 2.4);
+  SC = sMelt * (1 + breathe);
+  let R = Xf;
+  for (let i = 0; i < N; i++) {
+    const x   = XL[i];
+    const wob = M * 0.035 * Math.sin(x * 0.09 + t * 5.5) * (1 + 0.5 * Math.sin(t * 2.1 + x * 0.03));
+    hF[i] = H0[i] * SC * (1 + wob);                 // thickness outside the pipe
+    const w = windowW(R);                           // how squeezed this slice is
+    const h = lerp(hF[i], 2 * TR, w);               // actual thickness
+    const W = AR[i] / h;                            // width that conserves mass
+    Rr[i] = R; Lf[i] = R - W; Wd[i] = W; hh[i] = h; ww[i] = w;
+    cc[i] = lerp(B - hF[i] / 2, TY, w);             // rises to the pipe's centre line
+    R -= W;
+  }
+}
+
+// ---------- drawing ----------
+function render(t, M, Xf) {
+  layout(t, M, Xf);
+
+  // local cat coordinates -> world x / y
+  const px = xl => { const u = (LC - xl) / DX, i = clampI(Math.floor(u)); return Rr[i] - (u - i) * Wd[i]; };
+  const py = yl => B - yl * SC;
+  const wAt = xl => ww[clampI(Math.floor((LC - xl) / DX))];
+  const fmt = (x, y) => x.toFixed(1) + ' ' + y.toFixed(1);
+  const poly = pts => pts.map(([x, y], k) => (k ? 'L' : 'M') + fmt(px(x), py(y))).join('') + 'Z';
+
+  // body outline (top edge tail->head, bottom edge head->tail)
+  let d = '';
+  for (let i = N - 1; i >= 0; i--) d += (i === N - 1 ? 'M' : 'L') + fmt((Lf[i] + Rr[i]) / 2, cc[i] - hh[i] / 2);
+  for (let i = 0; i < N; i++)       d += 'L' + fmt((Lf[i] + Rr[i]) / 2, cc[i] + hh[i] / 2);
+  el.body.setAttribute('d', d + 'Z');
+
+  // gloss highlight along the top, only where the body is fat
+  let s = '', pen = false;
+  for (let i = N - 1; i >= 0; i--) {
+    if (ww[i] < 0.1 && hh[i] > 40) { s += (pen ? 'L' : 'M') + fmt((Lf[i] + Rr[i]) / 2, cc[i] - hh[i] / 2 + 9); pen = true; }
+    else pen = false;
+  }
+  el.shine.setAttribute('d', s);
+
+  // stripes
+  let st = '';
+  for (const xs of [62, 86, 110]) {
+    if (wAt(xs) > 0.02) continue;
+    const top = H(xs);
+    st += `M${fmt(px(xs), py(top - 2))}L${fmt(px(xs + 6), py(top - 20))}`;
+  }
+  el.stripes.setAttribute('d', st);
+
+  // ears (behind the body; fade out while inside the pipe)
+  el.ears.setAttribute('d',
+    poly([[168, 60], [198, 60], [174, 100]]) + poly([[212, 60], [236, 58], [230, 100]]));
+  el.ears.setAttribute('opacity', (1 - Math.min(1, wAt(190) * 4)).toFixed(3));
+
+  // nose + whiskers
+  el.nose.setAttribute('d', poly([[252, 33], [264, 27], [252, 21]]));
+  el.nose.setAttribute('opacity', (1 - Math.min(1, wAt(258) * 4)).toFixed(3));
+  el.whiskers.setAttribute('d',
+    `M${fmt(px(254), py(30))}L${fmt(px(300), py(35))}M${fmt(px(254), py(26))}L${fmt(px(300), py(21))}`);
+  el.whiskers.setAttribute('opacity', (1 - Math.min(1, wAt(262) * 4)).toFixed(3));
+
+  // eye (with a periodic blink)
+  const blink = (t % 3.2) < 0.14 ? 0.12 : 1;
+  const ex = px(240), ey = py(38);
+  const eyeOp = 1 - Math.min(1, wAt(240) * 4);
+  el.eye.setAttribute('cx', ex.toFixed(1));
+  el.eye.setAttribute('cy', ey.toFixed(1));
+  el.eye.setAttribute('ry', (8 * blink).toFixed(2));
+  el.eye.setAttribute('opacity', eyeOp.toFixed(3));
+  el.glint.setAttribute('cx', (ex + 2).toFixed(1));
+  el.glint.setAttribute('cy', (ey - 3).toFixed(1));
+  el.glint.setAttribute('opacity', (blink > 0.5 ? eyeOp : 0).toFixed(3));
+
+  // tail (attached to the tail end of the liquid)
+  const tx = Lf[N - 1], ty = B - 12;
+  const td = `M${fmt(tx, ty)}C${fmt(tx - 26, ty + 6)} ${fmt(tx - 34, ty - 40)} ${fmt(tx - 16, ty - 62)}`;
+  el.tail.setAttribute('d', td);
+  el.tailO.setAttribute('d', td);
+  const tailOp = (1 - Math.min(1, ww[N - 1] * 4)).toFixed(3);
+  el.tail.setAttribute('opacity', tailOp);
+  el.tailO.setAttribute('opacity', tailOp);
+}
+
+// ---------- timeline ----------
+// 0.0–0.8  idle
+// 0.8–2.2  melt (slump into liquid)
+// 2.2–6.8  pour through the pipe (eased)
+// 6.8–8.2  re-solidify on the far side
+// 8.2–9.4  hold, fade out at 9.4–10.0, fade in at the start pose
+let t0 = performance.now();
+
+function frame(now) {
+  const tt = ((now - t0) / 1000) % CYCLE;
+  let t = tt, alpha = 1;
+  if (tt >= 10.0)      { t = tt - 10.0; alpha = (tt - 10.0) / 0.4; }
+  else if (tt >= 9.4)  { alpha = 1 - (tt - 9.4) / 0.6; }
+
+  const M  = smooth((t - 0.8) / 1.4) - smooth((t - 6.8) / 1.4);  // 0 -> liquid -> 0
+  const p  = easeIO((t - 2.2) / 4.6);                             // progress of the pour
+  render(t, M, lerp(X0, X1, p));
+  el.scene.setAttribute('opacity', alpha.toFixed(3));
+  requestAnimationFrame(frame);
+}
+
+$('replay').onclick = () => { t0 = performance.now(); };
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
+```
+
+**How it works:** The cat is a side-view loaf, sliced into 110 vertical strips. Each strip keeps a fixed amount of "mass" (width × thickness). When a strip goes into the pipe, its thickness drops to the pipe's diameter and its width grows to match, so the cat stretches into a thin stream and then balloons back out on the other side. A funnel ramp at each end of the pipe makes the entry and exit look fluid.
+
+**Easy things to tweak:**
+- `T1`, `T2`, `TR`: pipe position and width (narrower `TR` means a thinner stream)
+- `X1`: how far the cat travels
+- The timeline numbers in `frame()`: melt, pour, and reform speeds
+- `#fur` gradient and the stroke colors: cat coat and outline
